@@ -1,0 +1,22 @@
+# WebRTC和通信服务器配置
+sys:
+  # 是否显示部门信息
+  show-dept: true
+  # 是否显示oauth2登录
+  show-oauth2: true
+  # 是否显示视频通话
+  show-video: true
+  # 是否显示会议
+  show-meeting: true
+  # 首次登录强制修改密码
+  password-first-login-update: true
+  # 密码有效期 90 天
+  password-validate-days: 90
+  # 密码的正则表达式
+  password-regex: ^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$
+  # 密码的正则表达式说明
+  password-regex-desc: 至少8位长;必须包含至少一个小写字母、一个大写字母、一个数字;只允许字母和数字的组合
+  #上传文件大小 1024*1024*100 = 100MB
+  uploadSize: 104857600
+  #上传文件类型
+  uploadType: doc,docx,xls,xlsx,pdf,zip,rar,txt,jpg,jpeg,png,ico,gif,mp4,mp3

@@ -1,0 +1,22 @@
+import { createApp } from 'vue'
+import ElementPlus from 'element-plus'
+import AddGroupUser from './QuickGroup.vue'
+
+/**
+ * 函数方式快速进群
+ */
+const quickGroup = (startUserId: string): void => {
+  const instance = createApp(AddGroupUser, { startUserId, closeDialog })
+  // 使用element-plus 并且设置全局的大小
+  instance.use(ElementPlus)
+  const node = document.createElement('div')
+  document.body.appendChild(node)
+  instance.mount(node)
+
+  function closeDialog() {
+    instance.unmount()
+    document.body.removeChild(node)
+  }
+}
+
+export default quickGroup

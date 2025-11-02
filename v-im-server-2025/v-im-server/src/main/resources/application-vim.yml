@@ -1,0 +1,22 @@
+vim:
+  #是否可以加好友
+  canAddFriend: 1
+  #不是好友是否可以私聊
+  canSendMessage: 1
+  #新消息声音音提醒
+  canSoundRemind: 1
+  #语音消息声音音提醒(暂时没有用)
+  canVoiceRemind: 1
+  #是否展示手机号
+  showMobile: 1
+  #是否展示邮箱
+  showEmail: 1
+  #添加好友是否需要验证
+  addFriendValidate: 0
+  #版本号
+  version: 1.2.37
+  #头像来源，如果是true就是使用v-im管理头像，如果是false则使用ruoyi-vue-plus管理头像
+  useImAvatar: true
+  #websocket端口
+  wsPort: 9326
+

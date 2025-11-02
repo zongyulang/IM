@@ -1,0 +1,8 @@
+enum AddFriendResultEnum {
+  SUCCESS = 'SUCCESS',
+  ALREADY_FRIEND = 'ALREADY_FRIEND',
+  ALREADY_REQUEST = 'ALREADY_REQUEST',
+  NOT_ALLOW_FRIEND = 'NOT_ALLOW_FRIEND',
+  WAIT_CHECK = 'WAIT_CHECK'
+}
+export default AddFriendResultEnum

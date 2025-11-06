@@ -8,6 +8,10 @@ spring:
     include:
       - vim
       - sys0
+
+  #author: fresleo
+  #data：2025-11-6 
+  #desciption： 设置tomcat的nio1 or nio2
   server:
     port: 8080
     tomcat:
@@ -15,4 +19,4 @@ spring:
       protocol: org.apache.coyote.http11.Http11NioProtocol
       max-threads: 200        # 最大工作线程数
       accept-count: 100       # 连接队列长度
-      connection-timeout: 20000  # 毫秒
+      connection-timeout: 10000  # 毫秒

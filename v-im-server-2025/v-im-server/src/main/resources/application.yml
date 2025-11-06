@@ -20,3 +20,9 @@ spring:
       max-threads: 200        # 最大工作线程数
       accept-count: 100       # 连接队列长度
       connection-timeout: 10000  # 毫秒
+  asw:
+    s3:
+      endpoint: https://your-s3-endpoint
+      accessKeyId: your-access-key-id
+      secretAccessKey: your-secret-access-key
+      region: your-region

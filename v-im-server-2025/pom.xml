@@ -167,6 +167,12 @@
             <artifactId>tio-websocket-server</artifactId>
             <version>3.8.6.v20240801-RELEASE</version>
         </dependency>
+        <!-- s3连接objectstorage -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>2.20.0</version>
+        </dependency>
 
         <dependency>
             <groupId>redis.clients</groupId>

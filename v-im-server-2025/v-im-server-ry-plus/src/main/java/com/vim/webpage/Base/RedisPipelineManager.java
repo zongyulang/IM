@@ -55,7 +55,7 @@ public class RedisPipelineManager extends RedisCommandManager {
             String method = command.getMethod();
             // 验证方法是否有效
             validateMethod(method);
-
+            //CompletableFuture代表一个可能还未完成的异步计算结果，你可以在未来某个时刻获取这个结果，或者等待它完成。
             CompletableFuture<Object> future = new CompletableFuture<>();
             this.commands.add(command);
             this.futures.add(future);

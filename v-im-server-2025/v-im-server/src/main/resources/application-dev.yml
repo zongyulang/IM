@@ -1,4 +1,5 @@
 # 开发环境配置
+#mvn clean spring-boot:run -DskipTests "-Dspring-boot.run.arguments=--spring.profiles.active=dev"
 server:
   # 服务器的HTTP端口，默认为8080
   port: 8080
@@ -62,17 +63,17 @@ spring:
           driverClassName: com.mysql.cj.jdbc.Driver
           # jdbc 所有参数配置参考 https://lionli.blog.csdn.net/article/details/122018562
           # rewriteBatchedStatements=true 批处理优化 大幅提升批量插入更新删除性能(对数据库有性能损耗 使用批量操作应考虑性能问题)
-          url: jdbc:mysql://127.0.0.1:3306/v-im-2025?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8&autoReconnect=true&rewriteBatchedStatements=true&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true
-          username: root
-          password: xlz123456
+          url: jdbc:mysql://localhost:3306/v-im-2025?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=GMT%2B8&autoReconnect=true&rewriteBatchedStatements=true&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true
+          username: v-im-2025
+          password: v-im-2025
         # 从库数据源
         slave:
           lazy: false
           type: ${spring.datasource.type}
           driverClassName: com.mysql.cj.jdbc.Driver
-          url: jdbc:mysql://127.0.0.1:3306/ry-vue?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8&autoReconnect=true&rewriteBatchedStatements=true&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true
-          username: root
-          password: xlz123456
+          url: jdbc:mysql://localhost:3306/ruoyi-vue-plus?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=GMT%2B8&autoReconnect=true&rewriteBatchedStatements=true&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true
+          username: ruoyi-vue-plus
+          password: ruoyi-vue-plus
 
       hikari:
         # 最大连接池数量
@@ -114,6 +115,14 @@ spring:
           max-active: 32
           # #连接池最大阻塞等待时间（使用负值表示没有限制）
           max-wait: -1ms
+
+  # Elasticsearch 配置
+  elasticsearch:
+    uris: ${ElasticSearch_URL:http://localhost:9200}
+    username: elastic
+    password: ${Elastic_Password:YPWSYYDS!ELASTIC}
+    connection-timeout: 5s
+    socket-timeout: 30s
 
   mvc:
     static-path-pattern: /static/**
@@ -183,6 +192,8 @@ security:
     - /register
     - /static/**
     - /profile/**
+    # 测试接口(开发环境可以临时开放)
+    - /api/**
 
 mybatis-plus:
   # 搜索指定包别名

@@ -1,46 +1,71 @@
 services:
   mysql:
-    image: mysql:8.0
     container_name: v-im-mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: root123456
-      TZ: Asia/Shanghai
-    command: ["mysqld", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--lower_case_table_names=1", "--default-authentication-plugin=mysql_native_password"]
+    image: mysql:8.0
     ports:
-      - "3306:3306"
+      - '3306:3306'
     volumes:
       - mysql-data:/var/lib/mysql
       - ./mysql/init:/docker-entrypoint-initdb.d
       - ../../doc:/docker-entrypoint-initdb.d/source:ro
+    environment:
+      MYSQL_ROOT_PASSWORD: root123456
+      TZ: Asia/Shanghai
+    command:
+      - mysqld
+      - '--character-set-server=utf8mb4'
+      - '--collation-server=utf8mb4_unicode_ci'
+      - '--lower_case_table_names=1'
+      - '--default-authentication-plugin=mysql_native_password'
 
   redis:
-    image: redis:7.4-alpine
     container_name: v-im-redis
-    command: ["redis-server", "--appendonly", "yes"]
+    image: redis:7.4-alpine
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redis-data:/data
+    command:
+      - redis-server
+      - '--appendonly'
+      - 'yes'
 
   mongodb:
-    image: mongo:7.0
     container_name: v-im-mongodb
+    image: mongo:7.0
     ports:
-      - "27017:27017"
+      - '27017:27017'
     volumes:
       - mongodb-data:/data/db
     environment:
       TZ: Asia/Shanghai
 
+  elasticsearch:
+    container_name: elasticsearch
+    image: elasticsearch:9.0.2
+    build: ./app/es/Dockerfile
+    restart: always
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    environment:
+      - discovery.type=single-node
+      - ELASTIC_PASSWORD=YPWSYYDS!ELASTIC
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+
   app:
+    container_name: v-im-server
     build:
       context: ..
       dockerfile: docker/app/Dockerfile
-    container_name: v-im-server
+    restart: unless-stopped
     depends_on:
       - mysql
       - redis
       - mongodb
+    ports:
+      - '8080:8080'
     environment:
       TZ: Asia/Shanghai
       SPRING_DATASOURCE_DYNAMIC_DATASOURCE_MASTER_URL: jdbc:mysql://mysql:3306/v-im-2025?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=GMT%2B8&autoReconnect=true&rewriteBatchedStatements=true&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true
@@ -52,13 +77,11 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_REDIS_DATABASE: 3
-      SPRING_DATA_REDIS_PASSWORD: ""
+      SPRING_DATA_REDIS_PASSWORD: ''
       SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/v-im-2025
-    ports:
-      - "8080:8080"
-    restart: unless-stopped
 
 volumes:
-  mysql-data:
-  redis-data:
-  mongodb-data:
+  mysql-data: null
+  redis-data: null
+  mongodb-data: null
+  elasticsearch-data: null

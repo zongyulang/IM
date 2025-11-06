@@ -104,7 +104,13 @@ spring:
        client-certificate-path: ${REDIS_CERT_PATH:classpath:redis-cert/redis.crt}
        client-key-path: ${REDIS_KEY_PATH:classpath:redis-cert/redis.key}
        client-key-password: ${REDIS_KEY_PASSWORD:}
-
+       
+  elasticsearch:
+    uris: ${ElasticSearch_URL:http://localhost:9200}
+    username: elastic
+    password: ${Elastic_Password:YPWSYYDS!ELASTIC}
+    connection-timeout: 5s
+    socket-timeout: 30s
 
   mvc:
     static-path-pattern: /static/**
@@ -175,7 +181,8 @@ security:
     - /register
     - /static/**
     - /profile/**
-
+    # webpage接口暂时不用token
+    - /api/**
 mybatis-plus:
   # 搜索指定包别名
   typeAliasesPackage: com.vim.**.domain

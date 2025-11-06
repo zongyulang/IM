@@ -4,7 +4,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
@@ -25,17 +27,22 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import lombok.extern.slf4j.Slf4j;
 
+//download使用nio的特性completablefuture不阻塞线程
 @Slf4j
 @Component
 public class ObjFileManager {
 
     @Autowired
     private S3Client s3Client;
+
+    @Autowired
+    private S3AsyncClient s3AsyncClient;
 
     @Value("${aws.s3.bucketName}")
     private String bucketName;
@@ -450,102 +457,153 @@ public class ObjFileManager {
         }
     }
 
+    /*
+     * 用法示例：
+
+     * // 异步下载单个文件
+     * CompletableFuture<String> future = objFileManager.downloadFileAsync("video/2024/file.mp4", "./downloads");
+     * future.thenAccept(path -> System.out.println("Downloaded to: " + path));
+     * 
+     * // 异步下载多个文件
+     * CompletableFuture<DownloadSummary> summaryFuture = objFileManager.downloadFilesAsync(files, "./downloads");
+     * summaryFuture.thenAccept(s -> System.out.println("Success: " + s.getSuccess()));
+     */
+
     /**
-     * 下载多个文件
+     * 异步下载单个文件（使用 S3AsyncClient）
+     * 
+     * @param fileKey      S3 对象的键
+     * @param downloadPath 本地下载路径
+     * @return CompletableFuture<String> 下载后的文件路径
+     */
+    public CompletableFuture<String> downloadFileAsync(String fileKey, String downloadPath) {
+        // 去除开头的斜杠
+        String sanitizedKey = fileKey.startsWith("/") ? fileKey.substring(1) : fileKey;
+
+        String fileName = Paths.get(sanitizedKey).getFileName().toString();
+        Path filePath = Paths.get(downloadPath, fileName);
+
+        try {
+            // 创建目录
+            Files.createDirectories(filePath.getParent());
+
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(sanitizedKey)
+                    .build();
+
+            // 使用异步客户端下载到文件
+            return s3AsyncClient.getObject(getObjectRequest, AsyncResponseTransformer.toFile(filePath))
+                    .thenApply(response -> {
+                        log.info("Successfully downloaded {} to {}", sanitizedKey, filePath);
+                        return filePath.toString();
+                    })
+                    .exceptionally(e -> {
+                        log.error("Error downloading {}: {}", sanitizedKey, e.getMessage(), e);
+                        // 清理可能的部分下载文件
+                        try {
+                            Files.deleteIfExists(filePath);
+                        } catch (IOException ex) {
+                            log.warn("Failed to delete partial file: {}", filePath);
+                        }
+                        throw new RuntimeException("Failed to download file: " + sanitizedKey, e);
+                    });
+
+        } catch (Exception e) {
+            log.error("Error setting up download for {}: {}", fileKey, e.getMessage(), e);
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+
+    /**
+     * 异步下载多个文件
      * 
      * @param fileList            文件键列表
      * @param defaultDownloadPath 默认下载路径
      * @param concurrency         并发数量，默认5
-     * @param continueOnError     遇到错误是否继续，默认true
-     * @return 下载汇总结果
+     * @return CompletableFuture<DownloadSummary> 下载汇总结果
      */
-    public DownloadSummary downloadFiles(List<String> fileList, String defaultDownloadPath,
-            int concurrency, boolean continueOnError) {
+    public CompletableFuture<DownloadSummary> downloadFilesAsync(List<String> fileList, String defaultDownloadPath,
+            int concurrency) {
         if (fileList == null || fileList.isEmpty()) {
-            throw new IllegalArgumentException("fileList must be a non-empty list");
+            return CompletableFuture
+                    .failedFuture(new IllegalArgumentException("fileList must be a non-empty list"));
         }
 
         DownloadSummary summary = new DownloadSummary();
         summary.setTotal(fileList.size());
 
-        List<DownloadResult> allResults = new ArrayList<>();
+        List<CompletableFuture<DownloadResult>> futures = new ArrayList<>();
 
         // 分批处理，控制并发数
-        for (int i = 0; i < fileList.size(); i += concurrency) {
-            int end = Math.min(i + concurrency, fileList.size());
-            List<String> batch = fileList.subList(i, end);
+        for (int i = 0; i < fileList.size(); i++) {
+            final int index = i;
+            final String fileKey = fileList.get(i);
 
-            for (int j = 0; j < batch.size(); j++) {
-                String fileKey = batch.get(j);
-                DownloadResult result = new DownloadResult();
-                result.setFileKey(fileKey);
-                result.setDownloadPath(defaultDownloadPath);
-                result.setIndex(i + j);
+            CompletableFuture<DownloadResult> future = downloadFileAsync(fileKey, defaultDownloadPath)
+                    .thenApply(filePath -> {
+                        DownloadResult result = new DownloadResult();
+                        result.setSuccess(true);
+                        result.setFileKey(fileKey);
+                        result.setDownloadPath(defaultDownloadPath);
+                        result.setFilePath(filePath);
+                        result.setIndex(index);
+                        return result;
+                    })
+                    .exceptionally(e -> {
+                        DownloadResult result = new DownloadResult();
+                        result.setSuccess(false);
+                        result.setFileKey(fileKey);
+                        result.setDownloadPath(defaultDownloadPath);
+                        result.setError(e.getMessage());
+                        result.setIndex(index);
+                        return result;
+                    });
 
-                try {
-                    String filePath = downloadFile(fileKey, defaultDownloadPath);
-                    result.setSuccess(true);
-                    result.setFilePath(filePath);
-                } catch (Exception e) {
-                    result.setSuccess(false);
-                    result.setError(e.getMessage());
-                    summary.getErrors().add(result);
+            futures.add(future);
 
-                    if (!continueOnError) {
-                        log.error("Download batch failed, stopping: {}", e.getMessage());
-                        break;
-                    }
-                }
-
-                allResults.add(result);
+            // 控制并发数：每 concurrency 个任务等待一批完成
+            if ((i + 1) % concurrency == 0 || i == fileList.size() - 1) {
+                // 等待当前批次完成再继续
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
             }
-
-            // 记录批次完成日志
-            int batchNumber = (i / concurrency) + 1;
-            long successCount = allResults.stream().filter(DownloadResult::isSuccess).count();
-            long failCount = allResults.size() - successCount;
-            log.info("Batch {} completed: {} success, {} failed", batchNumber, successCount, failCount);
         }
 
-        // 设置汇总结果
-        summary.setResults(allResults);
-        summary.setSuccess((int) allResults.stream().filter(DownloadResult::isSuccess).count());
-        summary.setFailed(summary.getTotal() - summary.getSuccess());
+        // 等待所有任务完成并收集结果
+        return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                .thenApply(v -> {
+                    List<DownloadResult> allResults = futures.stream()
+                            .map(CompletableFuture::join)
+                            .sorted((a, b) -> Integer.compare(a.getIndex(), b.getIndex()))
+                            .collect(Collectors.toList());
 
-        log.info("Download summary: {}/{} files downloaded successfully", summary.getSuccess(), summary.getTotal());
+                    summary.setResults(allResults);
+                    summary.setSuccess((int) allResults.stream().filter(DownloadResult::isSuccess).count());
+                    summary.setFailed(summary.getTotal() - summary.getSuccess());
 
-        if (summary.getFailed() > 0) {
-            log.warn("{} files failed to download", summary.getFailed());
-        }
+                    // 收集错误
+                    List<DownloadResult> errors = allResults.stream()
+                            .filter(r -> !r.isSuccess())
+                            .collect(Collectors.toList());
+                    summary.setErrors(errors);
 
-        return summary;
+                    log.info("Async download summary: {}/{} files downloaded successfully", summary.getSuccess(),
+                            summary.getTotal());
+
+                    if (summary.getFailed() > 0) {
+                        log.warn("{} files failed to download", summary.getFailed());
+                    }
+
+                    return summary;
+                });
     }
 
     /**
-     * 下载多个文件（使用默认参数）
+     * 异步下载多个文件（使用默认并发数5）
      */
-    public DownloadSummary downloadFiles(List<String> fileList, String defaultDownloadPath) {
-        return downloadFiles(fileList, defaultDownloadPath, 5, true);
+    public CompletableFuture<DownloadSummary> downloadFilesAsync(List<String> fileList, String defaultDownloadPath) {
+        return downloadFilesAsync(fileList, defaultDownloadPath, 5);
     }
-
-    /*
-     * 用法示例：
-     * 
-     * @Autowired
-     * private ObjFileManager objFileManager;
-     * 
-     * // 下载单个文件
-     * String filePath = objFileManager.downloadFile("video/2024/file.mp4",
-     * "./downloads");
-     * 
-     * // 下载文件夹
-     * boolean success = objFileManager.downloadFolder("video/2024/11/",
-     * "./downloads");
-     * 
-     * // 下载多个文件
-     * List<String> files = Arrays.asList("file1.mp4", "file2.mp4");
-     * DownloadSummary summary = objFileManager.downloadFiles(files, "./downloads");
-     */
 
     // endregion
     // #region 删除文件

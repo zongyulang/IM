@@ -6,6 +6,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import java.net.URI;
 
 /**
@@ -29,10 +30,20 @@ public class S3Config {
 
     @Value("${aws.s3.bucketName}")
     private String bucketName;
-    
+
     @Bean
     public S3Client s3Client() {
         return S3Client.builder()
+                .endpointOverride(URI.create(endpoint))
+                .credentialsProvider(
+                        StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKeyId, secretAccessKey)))
+                .region(Region.of(region))
+                .build();
+    }
+
+    @Bean
+    public S3AsyncClient s3AsyncClient() {
+        return S3AsyncClient.builder()
                 .endpointOverride(URI.create(endpoint))
                 .credentialsProvider(
                         StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKeyId, secretAccessKey)))

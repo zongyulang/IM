@@ -1,4 +1,4 @@
-package com.vim.webpage.Base;
+package com.vim.webpage.Base.Redis;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

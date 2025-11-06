@@ -22,7 +22,8 @@ spring:
       connection-timeout: 10000  # 毫秒
   asw:
     s3:
-      endpoint: https://your-s3-endpoint
-      accessKeyId: your-access-key-id
-      secretAccessKey: your-secret-access-key
-      region: your-region
+      endpoint: https://us-lax-1.linodeobjects.com
+      accessKeyId: 1WGL5ZC292D8IL1EYXPX
+      secretAccessKey: Wl8SMJl0Yvqqjicll4B8FQ8R6HxqLVFtw11gZYen
+      region: us-lax-1
+      bucketName: 01video

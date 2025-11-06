@@ -27,3 +27,8 @@ spring:
       secretAccessKey: Wl8SMJl0Yvqqjicll4B8FQ8R6HxqLVFtw11gZYen
       region: us-lax-1
       bucketName: 01video
+  cdn:
+    domain: https://static.95733714.xyz,https://static.others.top
+    secretIGSK: avmonkeyIMG123
+    secretTGSK: avmonkeyTS654
+    noCacheCdn: https://avmonkey.tv/api

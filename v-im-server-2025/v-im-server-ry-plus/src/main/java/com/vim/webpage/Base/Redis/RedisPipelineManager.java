@@ -179,6 +179,18 @@ public class RedisPipelineManager extends RedisCommandManager {
 
         try {
             switch (method.toLowerCase()) {
+                case "call":
+                    // 通用命令执行,第一个参数是实际的 Redis 命令,后续参数是命令参数
+                    if (args.length >= 1) {
+                        String actualCommand = String.valueOf(args[0]);
+                        byte[][] commandArgs = new byte[args.length][];
+                        commandArgs[0] = actualCommand.getBytes(StandardCharsets.UTF_8);
+                        for (int i = 1; i < args.length; i++) {
+                            commandArgs[i] = serialize(args[i]);
+                        }
+                        conn.execute(actualCommand, commandArgs);
+                    }
+                    break;
                 case "set":
                     if (args.length >= 2) {
                         byte[] key = stringSerializer.serialize(String.valueOf(args[0]));

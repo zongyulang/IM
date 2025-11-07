@@ -15,13 +15,8 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.core.ResponseInputStream;
-import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.FileOutputStream;
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -173,169 +168,91 @@ public class ObjFileManager {
     // #region 下载文件
 
     /**
-     * 下载单个文件
-     * 
-     * @param fileKey      S3 对象的键
-     * @param downloadPath 本地下载路径
-     * @return 下载后的文件路径
+     * 异步下载文件夹（使用 S3AsyncClient）
+     * 按照给定的前缀列举对象，并发下载到本地 downloadPath 下保留相对目录结构。
+     *
+     * @param folderPrefix S3 文件夹前缀，例如: "video/2025/07/uuid"
+     * @param downloadPath 本地下载根路径，例如: "public/video/2025/07/uuid"
+     * @return CompletableFuture<Boolean> 所有对象下载成功返回 true，任一失败则抛出异常或返回 false
      */
-    public String downloadFile(String fileKey, String downloadPath) {
-        // 去除开头的斜杠
-        if (fileKey.startsWith("/")) {
-            fileKey = fileKey.substring(1);
-        }
-
-        String fileName = Paths.get(fileKey).getFileName().toString();
-        String filePath = Paths.get(downloadPath, fileName).toString();
-        String tempPath = filePath + ".tmp";
-        String dirPath = Paths.get(filePath).getParent().toString();
-
+    public CompletableFuture<Boolean> downloadFolderAsync(String folderPrefix, String downloadPath) {
         try {
-            // 创建目录
-            File dir = new File(dirPath);
-            if (!dir.exists()) {
-                dir.mkdirs();
-            }
-
-            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(fileKey)
-                    .build();
-
-            ResponseInputStream<GetObjectResponse> s3Object = s3Client.getObject(getObjectRequest);
-
-            // 先写入临时文件
-            try (FileOutputStream fos = new FileOutputStream(tempPath);
-                    InputStream is = s3Object) {
-                byte[] buffer = new byte[8192];
-                int bytesRead;
-                while ((bytesRead = is.read(buffer)) != -1) {
-                    fos.write(buffer, 0, bytesRead);
-                }
-            }
-
-            // 原子操作：重命名临时文件
-            File tempFile = new File(tempPath);
-            File targetFile = new File(filePath);
-            if (targetFile.exists()) {
-                targetFile.delete();
-            }
-            tempFile.renameTo(targetFile);
-
-            log.info("Successfully downloaded {} to {}", fileKey, filePath);
-            return filePath;
-
-        } catch (Exception e) {
-            log.error("Error downloading {}: {}", fileKey, e.getMessage(), e);
-            // 清理临时文件
-            File tempFile = new File(tempPath);
-            if (tempFile.exists()) {
-                tempFile.delete();
-            }
-            throw new RuntimeException("Failed to download file: " + fileKey, e);
-        }
-    }
-
-    /**
-     * 下载文件夹
-     * 
-     * @param folderPrefix S3 文件夹前缀
-     * @param downloadPath 本地下载路径
-     * @return 是否下载成功
-     */
-    public boolean downloadFolder(String folderPrefix, String downloadPath) {
-        try {
-            // 去除开头的斜杠
-            if (folderPrefix.startsWith("/")) {
-                folderPrefix = folderPrefix.substring(1);
-            }
+            final String sanitizedPrefix = folderPrefix.startsWith("/") ? folderPrefix.substring(1) : folderPrefix;
 
             boolean isTruncated = true;
             String continuationToken = null;
-            List<S3Object> allObjects = new ArrayList<>();
+            final List<S3Object> allObjects = new ArrayList<>();
 
-            // Step 1: 列举文件夹下所有对象
             while (isTruncated) {
                 ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder()
                         .bucket(bucketName)
-                        .prefix(folderPrefix);
-
+                        .prefix(sanitizedPrefix);
                 if (continuationToken != null) {
                     requestBuilder.continuationToken(continuationToken);
                 }
-
                 ListObjectsV2Response listObjectsResponse = s3Client.listObjectsV2(requestBuilder.build());
-
                 if (listObjectsResponse.contents() != null) {
                     allObjects.addAll(listObjectsResponse.contents());
                 }
-
                 isTruncated = listObjectsResponse.isTruncated();
                 continuationToken = listObjectsResponse.nextContinuationToken();
             }
 
-            // 过滤掉无效对象
-            allObjects = allObjects.stream()
+            final List<S3Object> filteredObjects = allObjects.stream()
                     .filter(obj -> obj != null && obj.key() != null)
                     .collect(Collectors.toList());
 
-            // Step 2: 批量下载，每 100 个为一批
-            int batchSize = 100;
-            for (int i = 0; i < allObjects.size(); i += batchSize) {
-                int end = Math.min(i + batchSize, allObjects.size());
-                List<S3Object> batch = allObjects.subList(i, end);
+            if (filteredObjects.isEmpty()) {
+                log.info("No objects found under prefix: {}", sanitizedPrefix);
+                return CompletableFuture.completedFuture(true);
+            }
 
-                for (S3Object obj : batch) {
-                    downloadSingleObject(obj, folderPrefix, downloadPath);
+            List<CompletableFuture<?>> futures = new ArrayList<>();
+            for (S3Object obj : filteredObjects) {
+                final String key = obj.key();
+                String relativePath;
+                if (key.startsWith(sanitizedPrefix)) {
+                    relativePath = key.substring(sanitizedPrefix.length());
+                    if (relativePath.startsWith("/")) {
+                        relativePath = relativePath.substring(1);
+                    }
+                } else {
+                    relativePath = key;
                 }
-            }
-
-            log.info("Successfully downloaded folder {} to {}", folderPrefix, downloadPath);
-            return true;
-
-        } catch (Exception e) {
-            log.error("Error downloading folder {}: {}", folderPrefix, e.getMessage(), e);
-            return false;
-        }
-    }
-
-    /**
-     * 下载单个对象（内部方法）
-     */
-    private void downloadSingleObject(S3Object obj, String folderPrefix, String downloadPath) {
-        try {
-            // 计算本地存储路径
-            String relativePath = obj.key().replace(folderPrefix, "");
-            String targetFilePath = Paths.get(downloadPath, relativePath).toString().replace("\\", "/");
-            String dirPath = Paths.get(targetFilePath).getParent().toString();
-
-            // 创建目录
-            File dir = new File(dirPath);
-            if (!dir.exists()) {
-                dir.mkdirs();
-            }
-
-            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(obj.key())
-                    .build();
-
-            ResponseInputStream<GetObjectResponse> s3Object = s3Client.getObject(getObjectRequest);
-
-            try (FileOutputStream fos = new FileOutputStream(targetFilePath);
-                    InputStream is = s3Object) {
-                byte[] buffer = new byte[8192];
-                int bytesRead;
-                while ((bytesRead = is.read(buffer)) != -1) {
-                    fos.write(buffer, 0, bytesRead);
+                final String targetFilePath = Paths.get(downloadPath, relativePath).toString().replace("\\", "/");
+                try {
+                    Path parent = Paths.get(targetFilePath).getParent();
+                    if (parent != null) {
+                        Files.createDirectories(parent);
+                    }
+                } catch (IOException ioe) {
+                    log.error("Failed to create directories for {}", targetFilePath, ioe);
+                    return CompletableFuture.failedFuture(ioe);
                 }
+                GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                        .bucket(bucketName)
+                        .key(key)
+                        .build();
+                CompletableFuture<?> fut = s3AsyncClient
+                        .getObject(getObjectRequest, AsyncResponseTransformer.toFile(Paths.get(targetFilePath)))
+                        .thenAccept(resp -> log.debug("Downloaded {} to {}", key, targetFilePath))
+                        .exceptionally(ex -> {
+                            log.error("Error downloading {} -> {}", key, targetFilePath, ex);
+                            throw new RuntimeException("Failed to download object: " + key, ex);
+                        });
+                futures.add(fut);
             }
 
-            log.debug("Successfully downloaded {} to {}", obj.key(), targetFilePath);
-
+            final int objectCount = filteredObjects.size();
+            return CompletableFuture.allOf(futures.toArray(new CompletableFuture<?>[0]))
+                    .thenApply(v -> {
+                        log.info("Successfully downloaded folder {} to {} ({} objects)", sanitizedPrefix, downloadPath,
+                                objectCount);
+                        return true;
+                    });
         } catch (Exception e) {
-            log.error("Error downloading {}: {}", obj.key(), e.getMessage(), e);
-            throw new RuntimeException("Failed to download object: " + obj.key(), e);
+            log.error("Error setting up async download for folder {} -> {}", folderPrefix, downloadPath, e);
+            return CompletableFuture.failedFuture(e);
         }
     }
 
@@ -459,14 +376,17 @@ public class ObjFileManager {
 
     /*
      * 用法示例：
-
+     * 
      * // 异步下载单个文件
-     * CompletableFuture<String> future = objFileManager.downloadFileAsync("video/2024/file.mp4", "./downloads");
+     * CompletableFuture<String> future =
+     * objFileManager.downloadFileAsync("video/2024/file.mp4", "./downloads");
      * future.thenAccept(path -> System.out.println("Downloaded to: " + path));
      * 
      * // 异步下载多个文件
-     * CompletableFuture<DownloadSummary> summaryFuture = objFileManager.downloadFilesAsync(files, "./downloads");
-     * summaryFuture.thenAccept(s -> System.out.println("Success: " + s.getSuccess()));
+     * CompletableFuture<DownloadSummary> summaryFuture =
+     * objFileManager.downloadFilesAsync(files, "./downloads");
+     * summaryFuture.thenAccept(s -> System.out.println("Success: " +
+     * s.getSuccess()));
      */
 
     /**
@@ -517,25 +437,24 @@ public class ObjFileManager {
 
     /**
      * 异步下载多个文件
-     * 
+     *
      * @param fileList            文件键列表
-     * @param defaultDownloadPath 默认下载路径
-     * @param concurrency         并发数量，默认5
-     * @return CompletableFuture<DownloadSummary> 下载汇总结果
+     * @param defaultDownloadPath 本地下载路径（用于保存下载的文件）
+     * @param concurrency         并发批大小
+     * @return 下载汇总结果的 Future
      */
     public CompletableFuture<DownloadSummary> downloadFilesAsync(List<String> fileList, String defaultDownloadPath,
             int concurrency) {
         if (fileList == null || fileList.isEmpty()) {
-            return CompletableFuture
-                    .failedFuture(new IllegalArgumentException("fileList must be a non-empty list"));
+            return CompletableFuture.failedFuture(new IllegalArgumentException("fileList must be a non-empty list"));
         }
 
         DownloadSummary summary = new DownloadSummary();
         summary.setTotal(fileList.size());
 
         List<CompletableFuture<DownloadResult>> futures = new ArrayList<>();
+        List<CompletableFuture<DownloadResult>> batch = new ArrayList<>(concurrency);
 
-        // 分批处理，控制并发数
         for (int i = 0; i < fileList.size(); i++) {
             final int index = i;
             final String fileKey = fileList.get(i);
@@ -561,15 +480,20 @@ public class ObjFileManager {
                     });
 
             futures.add(future);
+            batch.add(future);
 
-            // 控制并发数：每 concurrency 个任务等待一批完成
-            if ((i + 1) % concurrency == 0 || i == fileList.size() - 1) {
-                // 等待当前批次完成再继续
-                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            // 控制并发：达到批次大小就等待该批完成
+            if (batch.size() == concurrency) {
+                CompletableFuture.allOf(batch.toArray(new CompletableFuture[0])).join();
+                batch.clear();
             }
         }
 
-        // 等待所有任务完成并收集结果
+        // 等待剩余未满批次的任务
+        if (!batch.isEmpty()) {
+            CompletableFuture.allOf(batch.toArray(new CompletableFuture[0])).join();
+        }
+
         return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
                 .thenApply(v -> {
                     List<DownloadResult> allResults = futures.stream()
@@ -581,7 +505,6 @@ public class ObjFileManager {
                     summary.setSuccess((int) allResults.stream().filter(DownloadResult::isSuccess).count());
                     summary.setFailed(summary.getTotal() - summary.getSuccess());
 
-                    // 收集错误
                     List<DownloadResult> errors = allResults.stream()
                             .filter(r -> !r.isSuccess())
                             .collect(Collectors.toList());
@@ -589,11 +512,9 @@ public class ObjFileManager {
 
                     log.info("Async download summary: {}/{} files downloaded successfully", summary.getSuccess(),
                             summary.getTotal());
-
                     if (summary.getFailed() > 0) {
                         log.warn("{} files failed to download", summary.getFailed());
                     }
-
                     return summary;
                 });
     }

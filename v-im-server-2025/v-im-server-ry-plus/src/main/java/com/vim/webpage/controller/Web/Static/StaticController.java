@@ -1,10 +1,11 @@
 package com.vim.webpage.controller.Web.Static;
 
+import com.vim.webpage.Utils.CDN_decrypt;
 import com.vim.webpage.service.Storage.AvatarFilePullService;
 import com.vim.webpage.service.Storage.VideoFilePullService;
-import com.vim.webpage.Utils.CDN_decrypt;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -13,19 +14,28 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
 /**
  * 静态资源控制器
- * 处理视频、图片、头像等静态资源的请求
+ * 功能：
+ * 1. /proxy/** - 带签名验证的代理访问(图片、视频等)
+ * 2. /preview/** - 预览图访问(带签名验证)
+ * 3. /video/** - 视频文件访问(需要特定请求头验证)
+ * 4. /M3u8/** - M3U8 播放列表访问(带签名验证并重写 TS 路径)
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/static")
+@RequestMapping("/api")
 public class StaticController {
+
+    @Autowired
+    private CDN_decrypt cdnDecrypt;
 
     @Autowired
     private VideoFilePullService videoFilePullService;
@@ -33,206 +43,286 @@ public class StaticController {
     @Autowired
     private AvatarFilePullService avatarFilePullService;
 
-    @Autowired
-    private CDN_decrypt cdnDecrypt;
+    @Value("${cdn.secretIGSK}")
+    private String secretIGSK;
+
+    @Value("${cdn.secretTGSK}")
+    private String secretTGSK;
+
+    @Value("${spring.profiles.active:dev}")
+    private String activeProfile;
 
     /**
-     * 获取视频文件 (m3u8, ts, key 等)
-     * 示例: GET /api/static/video/2025/07/uuid/index.m3u8
+     * 处理 /proxy/** 请求 - 带签名验证的资源代理
+     * URL 格式: /api/proxy/{signature}/{base64Path}
      */
-    @GetMapping("/video/**")
-    public ResponseEntity<Resource> getVideoFile(HttpServletRequest request) {
+    @GetMapping("/proxy/**")
+    public ResponseEntity<?> handleProxy(HttpServletRequest request) {
+        String requestUrl = request.getRequestURI();
+        log.info("Proxy request: {}", requestUrl);
+
         try {
-            // 提取实际的文件路径
-            String requestPath = request.getRequestURI();
-            String filePath = requestPath.replace("/api/static/", "");
+            // 验证签名并解码路径
+            CDN_decrypt.VerifyResult result = cdnDecrypt.verifySignedPathWithVersion(requestUrl, secretIGSK);
             
-            log.info("Requesting video file: {}", filePath);
-            
-            // 获取文件（自动处理下载逻辑）
-            String localPath = videoFilePullService.getFile(filePath);
-            
-            return serveFile(localPath);
-            
+            if (!result.valid) {
+                log.error("❌ 验证签名失败: {}", result.reason);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("{\"message\": \"Forbidden\"}");
+            }
+
+            log.info("✅ 验证签名成功: {}", result.decodedPath);
+            String decodedPath = result.decodedPath;
+
+            // 判断是否是头像文件
+            if (decodedPath.startsWith("/Avatar/")) {
+                return handleAvatarFile(decodedPath);
+            } else {
+                // 获取文件（自动下载）
+                String localPath = videoFilePullService.getFile(decodedPath);
+                return serveFile(localPath, true);
+            }
+
         } catch (Exception e) {
-            log.error("Error serving video file", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            log.error("❌ Proxy 请求处理失败: {}", requestUrl, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("{\"message\": \"Fetch Static Error\"}");
         }
     }
 
     /**
-     * 获取缩略图
-     * 示例: GET /api/static/thumbnail/2025/07/uuid/Thumbnail_combined.mp4
-     */
-    @GetMapping("/thumbnail/**")
-    public ResponseEntity<Resource> getThumbnail(HttpServletRequest request) {
-        try {
-            String requestPath = request.getRequestURI();
-            String filePath = requestPath.replace("/api/static/", "");
-            
-            log.info("Requesting thumbnail: {}", filePath);
-            
-            String localPath = videoFilePullService.getFile(filePath);
-            
-            return serveFile(localPath);
-            
-        } catch (Exception e) {
-            log.error("Error serving thumbnail", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    /**
-     * 获取预览图
-     * 示例: GET /api/static/preview/2025/07/uuid/preview_image_0.jpg
+     * 处理 /preview/** 请求 - 预览图访问
+     * URL 格式: /api/preview/{signature}/{base64Path}
      */
     @GetMapping("/preview/**")
-    public ResponseEntity<Resource> getPreview(HttpServletRequest request) {
+    public ResponseEntity<?> handlePreview(HttpServletRequest request) {
+        String requestUrl = request.getRequestURI();
+        log.info("Preview request: {}", requestUrl);
+
         try {
-            String requestPath = request.getRequestURI();
-            String filePath = requestPath.replace("/api/static/", "");
+            // 验证预览图签名
+            CDN_decrypt.VerifyResult result = cdnDecrypt.verifyPreviewImagePath(requestUrl, secretIGSK);
             
-            log.info("Requesting preview image: {}", filePath);
+            if (!result.valid) {
+                log.error("❌ 验证签名失败: {}", result.reason);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body("{\"message\": \"Forbidden\"}");
+            }
+
+            log.info("✅ 验证签名成功: {}", result.decodedPath);
             
-            String localPath = videoFilePullService.getFile(filePath);
-            
-            return serveFile(localPath);
-            
+            // 获取文件
+            String localPath = videoFilePullService.getFile(result.decodedPath);
+            return serveFile(localPath, true);
+
         } catch (Exception e) {
-            log.error("Error serving preview image", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            log.error("❌ Preview 请求处理失败: {}", requestUrl, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("{\"message\": \"Fetch Static Error\"}");
         }
     }
 
     /**
-     * 获取头像
-     * 示例: GET /api/static/avatar/user123.jpg
+     * 处理 /video/** 请求 - 视频资源访问
+     * 需要验证特定请求头 x-edge-cf
      */
-    @GetMapping("/avatar/**")
-    public ResponseEntity<Resource> getAvatar(HttpServletRequest request) {
+    @GetMapping("/api/video/**")
+    public ResponseEntity<?> handleVideo(HttpServletRequest request) {
+        String requestUrl = request.getRequestURI();
+        String requestPath = requestUrl.substring("/api".length()); // 移除 /api 前缀
+        log.info("Video request: {}", requestPath);
+
         try {
-            String requestPath = request.getRequestURI();
-            String avatarPath = requestPath.replace("/api/static/", "");
+            // 生产环境验证 x-edge-cf 头
+            if (!"dev".equals(activeProfile) && !"development".equals(activeProfile)) {
+                String cfHeader = request.getHeader("x-edge-cf");
+                if (cfHeader == null) {
+                    log.warn("❌ 缺少 x-edge-cf 头");
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body("{\"message\": \"Missing header\"}");
+                }
+                //返回的从cfworker中获取的头
+                if (!"99681556".equals(cfHeader)) {
+                    log.warn("❌ x-edge-cf 值错误: {}", cfHeader);
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body("{\"message\": \"Invalid header\"}");
+                }
+            }
+
+            // 获取文件
+            String localPath = videoFilePullService.getFile(requestPath);
             
-            log.info("Requesting avatar: {}", avatarPath);
+            // 设置 CORS（开发环境）
+            HttpHeaders headers = new HttpHeaders();
+            String origin = request.getHeader("Origin");
+            if (origin != null && !"production".equals(activeProfile)) {
+                headers.add("Access-Control-Allow-Origin", origin);
+            }
+            headers.setCacheControl("public, max-age=2592000, immutable");
+
+            return serveFileWithHeaders(localPath, headers, false);
+
+        } catch (Exception e) {
+            log.error("❌ Video 请求处理失败: {}", requestPath, e);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("{\"message\": \"File not found\"}");
+        }
+    }
+
+    /**
+     * 处理 /M3u8/** 请求 - M3U8 播放列表访问
+     * URL 格式: /api/M3u8/{pathSig}/{base64path}/{filename}.m3u8?validfrom=...&validto=...&hash=...
+     */
+    @GetMapping("/M3u8/**")
+    public ResponseEntity<?> handleM3u8(HttpServletRequest request) {
+        String requestUrl = request.getRequestURI();
+        String queryString = request.getQueryString();
+        String fullUrl = queryString != null ? requestUrl + "?" + queryString : requestUrl;
+        log.info("M3U8 request: {}", fullUrl);
+
+        try {
+            // 验证 M3U8 签名
+            CDN_decrypt.VerifyResult result = cdnDecrypt.verifyM3u8Hash(fullUrl, secretTGSK);
             
+            if (!result.valid) {
+                log.error("验证签名失败: {}", result.reason);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("{\"message\": \"Forbidden\"}");
+            }
+
+            String decodedPath = result.decodedPath;
+            log.info("✅ M3U8 验证成功: {}", decodedPath);
+
+            // 获取文件
+            String localPath = videoFilePullService.getFile(decodedPath);
+            Path filePath = Paths.get(localPath);
+
+            // 读取 m3u8 内容
+            String content = Files.readString(filePath, StandardCharsets.UTF_8);
+
+            // 重写 TS 路径
+            String basePath = decodedPath.substring(0, decodedPath.lastIndexOf('/') + 1);
+            String fileName = decodedPath.substring(decodedPath.lastIndexOf('/') + 1);
+            String hdl = fileName.contains("Middle") ? "-1" : "1";
+
+            // 获取客户端 IP
+            String ipa = request.getHeader("x-forwarded-for");
+            if (ipa != null && ipa.contains(",")) {
+                ipa = ipa.split(",")[0].trim();
+            }
+            if (ipa == null) {
+                ipa = request.getRemoteAddr();
+            }
+
+            String userAgent = request.getHeader("User-Agent");
+            if (userAgent == null) {
+                userAgent = "";
+            }
+
+            // 重写内容
+            String rewrittenContent = cdnDecrypt.setM3u8TsPath(
+                    content, basePath, secretTGSK, ipa, hdl, userAgent, 3600);
+
+            // 返回 M3U8 内容
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType("application/vnd.apple.mpegurl"));
+            headers.setCacheControl("no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+            headers.setPragma("no-cache");
+            headers.setExpires(0);
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(rewrittenContent);
+
+        } catch (Exception e) {
+            log.error("❌ M3U8 请求处理失败: {}", fullUrl, e);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("{\"message\": \"m3u8 file not found\"}");
+        }
+    }
+
+    /**
+     * 处理头像文件
+     */
+    private ResponseEntity<?> handleAvatarFile(String avatarPath) {
+        try {
             String localPath = avatarFilePullService.getAvatar(avatarPath);
             
-            return serveFile(localPath);
-            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.IMAGE_PNG);
+            //设置缓存头
+            headers.setCacheControl("public, max-age=31536000, immutable");
+
+            return serveFileWithHeaders(localPath, headers, true);
+
         } catch (Exception e) {
-            log.error("Error serving avatar", e);
+            log.error("获取头像文件失败: {}", avatarPath, e);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("{\"message\": \"Avatar file not found\"}");
+        }
+    }
+
+    /**
+     * 返回文件资源
+     */
+    private ResponseEntity<Resource> serveFile(String filePath, boolean longCache) {
+        try {
+            Path path = Paths.get(filePath);
+            if (!Files.exists(path)) {
+                return ResponseEntity.notFound().build();
+            }
+
+            Resource resource = new FileSystemResource(path);
+            String contentType = Files.probeContentType(path);
+            if (contentType == null) {
+                contentType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
+            }
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType(contentType));
+            if (longCache) {
+                headers.setCacheControl("public, max-age=31536000, immutable");
+            } else {
+                headers.setCacheControl("public, max-age=2592000, immutable");
+            }
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(resource);
+
+        } catch (IOException e) {
+            log.error("读取文件失败: {}", filePath, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
     /**
-     * 生成签名的 M3U8 URL
-     * 示例: POST /api/static/sign/m3u8
-     * Body: { "path": "video/2025/07/uuid/index.m3u8" }
+     * 返回文件资源（带自定义 headers）
      */
-    @PostMapping("/sign/m3u8")
-    public ResponseEntity<SignResponse> signM3u8Url(@RequestBody SignRequest request) {
+    private ResponseEntity<Resource> serveFileWithHeaders(String filePath, HttpHeaders customHeaders, boolean isImage) {
         try {
-            String signedUrl = cdnDecrypt.generateM3u8Hash(request.getPath());
-            return ResponseEntity.ok(new SignResponse(true, signedUrl, null));
-        } catch (Exception e) {
-            log.error("Error signing M3U8 URL", e);
-            return ResponseEntity.ok(new SignResponse(false, null, e.getMessage()));
-        }
-    }
+            Path path = Paths.get(filePath);
+            if (!Files.exists(path)) {
+                return ResponseEntity.notFound().build();
+            }
 
-    /**
-     * 生成签名的图片 URL
-     * 示例: POST /api/static/sign/image
-     * Body: { "path": "video/2025/07/uuid/preview_image_0.jpg" }
-     */
-    @PostMapping("/sign/image")
-    public ResponseEntity<SignResponse> signImageUrl(@RequestBody SignRequest request) {
-        try {
-            String signedUrl = cdnDecrypt.generateSignedPathWithVersion(request.getPath());
-            return ResponseEntity.ok(new SignResponse(true, signedUrl, null));
-        } catch (Exception e) {
-            log.error("Error signing image URL", e);
-            return ResponseEntity.ok(new SignResponse(false, null, e.getMessage()));
-        }
-    }
+            Resource resource = new FileSystemResource(path);
+            
+            if (customHeaders.getContentType() == null) {
+                String contentType = Files.probeContentType(path);
+                if (contentType == null) {
+                    contentType = isImage ? MediaType.IMAGE_PNG_VALUE : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+                }
+                customHeaders.setContentType(MediaType.parseMediaType(contentType));
+            }
 
-    /**
-     * 提供文件下载
-     */
-    private ResponseEntity<Resource> serveFile(String filePath) throws Exception {
-        Path path = Paths.get(filePath);
-        
-        if (!Files.exists(path)) {
-            log.warn("File not found: {}", filePath);
-            return ResponseEntity.notFound().build();
-        }
-        
-        Resource resource = new FileSystemResource(path.toFile());
-        String contentType = Files.probeContentType(path);
-        
-        if (contentType == null) {
-            contentType = "application/octet-stream";
-        }
-        
-        return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(contentType))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + path.getFileName().toString() + "\"")
-                .body(resource);
-    }
+            return ResponseEntity.ok()
+                    .headers(customHeaders)
+                    .body(resource);
 
-    /**
-     * 签名请求参数
-     */
-    public static class SignRequest {
-        private String path;
-
-        public String getPath() {
-            return path;
-        }
-
-        public void setPath(String path) {
-            this.path = path;
-        }
-    }
-
-    /**
-     * 签名响应
-     */
-    public static class SignResponse {
-        private boolean success;
-        private String signedUrl;
-        private String error;
-
-        public SignResponse(boolean success, String signedUrl, String error) {
-            this.success = success;
-            this.signedUrl = signedUrl;
-            this.error = error;
-        }
-
-        public boolean isSuccess() {
-            return success;
-        }
-
-        public void setSuccess(boolean success) {
-            this.success = success;
-        }
-
-        public String getSignedUrl() {
-            return signedUrl;
-        }
-
-        public void setSignedUrl(String signedUrl) {
-            this.signedUrl = signedUrl;
-        }
-
-        public String getError() {
-            return error;
-        }
-
-        public void setError(String error) {
-            this.error = error;
+        } catch (IOException e) {
+            log.error("读取文件失败: {}", filePath, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 }

@@ -183,6 +183,9 @@ security:
     - /profile/**
     # webpage接口暂时不用token
     - /api/**
+    - /proxy/**
+    - /hls/**
+    - /preview/**
 mybatis-plus:
   # 搜索指定包别名
   typeAliasesPackage: com.vim.**.domain

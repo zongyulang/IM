@@ -89,7 +89,7 @@ public class VideoFilePullService {
         try {
             // 增加引用计数
             redisTemplate.opsForValue().increment(refCountKey);
-            redisTemplate.expire(refCountKey, Duration.ofSeconds(storageConfig.getFileExpireTime()));
+            redisTemplate.expire(refCountKey, Duration.ofSeconds(storageConfig.getLockTimeoutSeconds()));
 
             try {
                 String localPath = FilePathUtil.joinPath(storageConfig.getLocalBasePath(), filePath);

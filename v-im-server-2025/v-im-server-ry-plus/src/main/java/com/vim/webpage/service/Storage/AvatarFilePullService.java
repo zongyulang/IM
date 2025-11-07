@@ -50,7 +50,8 @@ public class AvatarFilePullService {
         try {
             // increment，原子性
             redisTemplate.opsForValue().increment(refCountKey);
-            redisTemplate.expire(refCountKey, Duration.ofSeconds(storageConfig.getFileExpireTime()));
+            //设置删除锁的过期时间，下载计数，作用：防止下载的时候正在删除
+            redisTemplate.expire(refCountKey, Duration.ofSeconds(storageConfig.getLockTimeoutSeconds()));
 
             try {
                 String localPath = FilePathUtil.joinPath(storageConfig.getLocalBasePath(), avatarPath);

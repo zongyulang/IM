@@ -38,6 +38,7 @@
         <velocity.version>2.3</velocity.version>
         <jwt.version>0.9.1</jwt.version>
         <satoken.version>1.39.0</satoken.version>
+        <java.version>21</java.version>
     </properties>
     <dependencies>
         <!-- Elasticsearch Java API Client -->

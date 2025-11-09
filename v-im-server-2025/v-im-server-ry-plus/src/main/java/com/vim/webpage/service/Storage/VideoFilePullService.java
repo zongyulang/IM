@@ -198,7 +198,8 @@ public class VideoFilePullService {
             switch (fileType) {
                 case THUMBNAIL:
                     // 下载缩略图（包含 combined 视频）
-                    return downloadThumbnailFiles(filePath, uuid);
+                    downloadThumbnailFiles(filePath, uuid);
+                    break;
                     
                 case KEY:
                     // 下载整个 key 所在的文件夹(异步)
@@ -241,16 +242,22 @@ public class VideoFilePullService {
                     throw new IllegalArgumentException("Unsupported file type: " + fileType);
             }
             
-            // 设置 Redis 缓存
+            // ⭐ 设置 Redis 缓存（所有文件类型下载完成后统一设置）
             if (uuid != null) {
                 String rootPath = FilePathUtil.getRootPath(filePath, fileType);
                 if (rootPath != null) {
                     redisFileManager.setFileRootPath(fileType, rootPath, uuid);
+                    log.info("✅ Set Redis hash for type: {}, uuid: {}, root: {}", 
+                            fileType.getType(), uuid, rootPath);
+                } else {
+                    log.warn("⚠️ Cannot set Redis: rootPath is null for filePath: {}", filePath);
                 }
+            } else {
+                log.warn("⚠️ Cannot set Redis: uuid is null for filePath: {}", filePath);
             }
             
             String localPath = FilePathUtil.joinPath(storageConfig.getLocalBasePath(), filePath);
-            log.info("Successfully downloaded file to: {}", localPath);
+            log.info("✅ Successfully downloaded and cached file: {}", localPath);
             return localPath;
             
         } catch (Exception e) {
@@ -258,11 +265,11 @@ public class VideoFilePullService {
             if (e.getMessage() != null && (e.getMessage().contains("NoSuchKey") 
                     || e.getMessage().contains("not found") 
                     || e.getMessage().contains("does not exist"))) {
-                log.warn("File not found in storage: {}", filePath);
+                log.warn("❌ File not found in storage: {}", filePath);
                 throw new RuntimeException("File not found in storage: " + filePath, e);
             }
             
-            log.error("Error downloading files for: {}", filePath, e);
+            log.error("❌ Error downloading files for: {}", filePath, e);
             throw new RuntimeException("Failed to download files: " + filePath, e);
         }
     }
@@ -271,7 +278,7 @@ public class VideoFilePullService {
      * 下载缩略图文件（包含 combined 视频）
      * 对应 Node.js 的 combineThumbnailNeed 逻辑
      */
-    private String downloadThumbnailFiles(String filePath, String uuid) {
+    private void downloadThumbnailFiles(String filePath, String uuid) {
         try {
             // 提取缩略图和 combined 视频的路径
             // 例如: video/2025/07/uuid/Thumbnail.webp
@@ -279,41 +286,34 @@ public class VideoFilePullService {
             String normalized = FilePathUtil.normalizePath(filePath);
             int lastSlash = normalized.lastIndexOf('/');
             String folder = lastSlash > 0 ? normalized.substring(0, lastSlash) : "";
-            String fileName = lastSlash > 0 ? normalized.substring(lastSlash + 1) : normalized;
             
             // 构建缩略图文件路径
             String thumbnailPath = filePath;
             
-            // 构建 combined 视频路径（假设是 Thumbnail_combined.mp4）
-            String baseName = fileName;
-            int dotIndex = baseName.lastIndexOf('.');
-            if (dotIndex > 0) {
-                baseName = baseName.substring(0, dotIndex);
-            }
-            String combinedVideoPath = FilePathUtil.joinPath(folder, baseName + "_combined.mp4");
+            // 构建 combined 视频路径（固定为 Thumbnail_combined.mp4）
+            String combinedVideoPath = FilePathUtil.joinPath(folder, "Thumbnail_combined.mp4");
             
             String downloadPath = FilePathUtil.joinPath(storageConfig.getLocalBasePath(), folder);
             
-            log.info("Downloading thumbnail: {}", thumbnailPath);
-            log.info("Downloading combined video: {}", combinedVideoPath);
+            log.info("Downloading thumbnail files to: {}", downloadPath);
+            log.info("Files: {} and {}", thumbnailPath, combinedVideoPath);
             
-            // 使用异步下载（并发下载2个文件）
-            CompletableFuture<String> thumbnailFuture = objFileManager.downloadFileAsync(thumbnailPath, downloadPath);
-            CompletableFuture<String> combinedFuture = objFileManager.downloadFileAsync(combinedVideoPath, downloadPath);
+            // 使用批量下载（并发下载2个文件）
+            java.util.List<String> filePaths = java.util.Arrays.asList(thumbnailPath, combinedVideoPath);
+            CompletableFuture<ObjFileManager.DownloadSummary> downloadFuture = objFileManager.downloadFilesAsync(filePaths, downloadPath);
             
-            // 等待两个文件都下载完成
-            CompletableFuture.allOf(thumbnailFuture, combinedFuture)
-                    .get(DOWNLOAD_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            // 等待下载完成
+            ObjFileManager.DownloadSummary summary = downloadFuture.get(DOWNLOAD_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             
-            String thumbnailResult = thumbnailFuture.get();
-            String combinedResult = combinedFuture.get();
+            log.info("✅ Successfully downloaded thumbnail files: success={}, failed={}", 
+                    summary.getSuccess(), summary.getFailed());
             
-            log.info("Successfully downloaded thumbnail files: {} and {}", thumbnailResult, combinedResult);
-            
-            return FilePathUtil.joinPath(storageConfig.getLocalBasePath(), filePath);
+            if (summary.getFailed() > 0) {
+                log.warn("⚠️ Some thumbnail files failed to download: {}", summary.getErrors());
+            }
             
         } catch (Exception e) {
-            log.error("Error downloading thumbnail files: {}", filePath, e);
+            log.error("❌ Error downloading thumbnail files: {}", filePath, e);
             throw new RuntimeException("Failed to download thumbnail files: " + filePath, e);
         }
     }

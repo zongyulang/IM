@@ -15,7 +15,12 @@ public class StorageConfig {
     /**
      * 公共文件根路径过期时间(秒)
      */
-    private long publicFileRootExpireTime = 30L * 24 * 60 * 60;// 30天
+    private long publicFileRootExpireTime = 30L * 24 * 60 * 61;// 30天
+
+    /**
+     * 公共文件最大过期时间(秒) - 用于 Thumbnail/Preview/Key/M3U8
+     */
+    private long publicFileMaxExpireTime = 30L * 24 * 60 * 60;// 30天
 
     /**
      * TS文件过期时间(秒)

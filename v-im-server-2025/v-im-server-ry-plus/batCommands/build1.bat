@@ -8,7 +8,7 @@ call mvn clean install -DskipTests
 if %errorlevel% equ 0 (
     echo 编译成功,启动应用...
     cd v-im-server-ry-plus
-    call mvn spring-boot:run -DskipTests
+    call mvn spring-boot:run -DskipTests -Dspring-boot.run.jvmArguments="-Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Dconsole.encoding=UTF-8"
 ) else (
     echo 编译失败!
     pause

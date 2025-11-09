@@ -46,6 +46,7 @@
                     <!-- 如果使用 Java 8+ -->
                     <source>${java.version}</source>
                     <target>${java.version}</target>
+                    <encoding>${project.build.sourceEncoding}</encoding>
                 </configuration>
             </plugin>
             <plugin>

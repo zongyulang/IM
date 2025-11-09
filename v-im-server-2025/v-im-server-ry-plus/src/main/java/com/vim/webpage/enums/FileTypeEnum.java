@@ -4,7 +4,7 @@ package com.vim.webpage.enums;
  * 文件类型枚举
  */
 public enum FileTypeEnum {
-    THUMBNAIL("Thumbnail", ".webp", ".jpg", ".png"),
+    THUMBNAIL("Thumbnail", ".webp", ".jpg", ".png",".mp4"),
     M3U8("m3u8", ".m3u8"),
     TS("ts", ".ts"),
     PREVIEW("preview", ".jpg"),

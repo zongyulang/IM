@@ -60,11 +60,14 @@ public class StaticController {
     public ResponseEntity<?> handleProxy(HttpServletRequest request) {
         String requestUrl = request.getRequestURI();
         log.info("Proxy request: {}", requestUrl);
-
+        Thread currentThread = Thread.currentThread();
+        // 输出当前处理线程的信息，便于确认是否为虚拟线程
+        log.info("Request handling thread: name={}, id={}, isVirtual={}",
+                currentThread.getName(), currentThread.getId(), currentThread.isVirtual());
         try {
             // 验证签名并解码路径
             CDN_decrypt.VerifyResult result = cdnDecrypt.verifySignedPathWithVersion(requestUrl, secretIGSK);
-            
+
             if (!result.valid) {
                 log.error("❌ 验证签名失败: {}", result.reason);
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -102,7 +105,7 @@ public class StaticController {
         try {
             // 验证预览图签名
             CDN_decrypt.VerifyResult result = cdnDecrypt.verifyPreviewImagePath(requestUrl, secretIGSK);
-            
+
             if (!result.valid) {
                 log.error("❌ 验证签名失败: {}", result.reason);
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -110,7 +113,7 @@ public class StaticController {
             }
 
             log.info("✅ 验证签名成功: {}", result.decodedPath);
-            
+
             // 获取文件
             String localPath = videoFilePullService.getFile(result.decodedPath);
             return serveFile(localPath, true);
@@ -141,7 +144,7 @@ public class StaticController {
                     return ResponseEntity.status(HttpStatus.FORBIDDEN)
                             .body("{\"message\": \"Missing header\"}");
                 }
-                //返回的从cfworker中获取的头
+                // 返回的从cfworker中获取的头
                 if (!"99681556".equals(cfHeader)) {
                     log.warn("❌ x-edge-cf 值错误: {}", cfHeader);
                     return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -151,7 +154,7 @@ public class StaticController {
 
             // 获取文件
             String localPath = videoFilePullService.getFile(requestPath);
-            
+
             // 设置 CORS（开发环境）
             HttpHeaders headers = new HttpHeaders();
             String origin = request.getHeader("Origin");
@@ -171,7 +174,8 @@ public class StaticController {
 
     /**
      * 处理 /M3u8/** 请求 - M3U8 播放列表访问
-     * URL 格式: /api/M3u8/{pathSig}/{base64path}/{filename}.m3u8?validfrom=...&validto=...&hash=...
+     * URL 格式:
+     * /api/M3u8/{pathSig}/{base64path}/{filename}.m3u8?validfrom=...&validto=...&hash=...
      */
     @GetMapping("/M3u8/**")
     public ResponseEntity<?> handleM3u8(HttpServletRequest request) {
@@ -183,7 +187,7 @@ public class StaticController {
         try {
             // 验证 M3U8 签名
             CDN_decrypt.VerifyResult result = cdnDecrypt.verifyM3u8Hash(fullUrl, secretTGSK);
-            
+
             if (!result.valid) {
                 log.error("验证签名失败: {}", result.reason);
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -247,10 +251,10 @@ public class StaticController {
     private ResponseEntity<?> handleAvatarFile(String avatarPath) {
         try {
             String localPath = avatarFilePullService.getAvatar(avatarPath);
-            
+
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.IMAGE_PNG);
-            //设置缓存头
+            // 设置缓存头
             headers.setCacheControl("public, max-age=31536000, immutable");
 
             return serveFileWithHeaders(localPath, headers, true);
@@ -275,7 +279,25 @@ public class StaticController {
             Resource resource = new FileSystemResource(path);
             String contentType = Files.probeContentType(path);
             if (contentType == null) {
-                contentType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
+                // 根据扩展名兜底
+                String fn = path.getFileName().toString().toLowerCase();
+                if (fn.endsWith(".webp")) {
+                    contentType = "image/webp";
+                } else if (fn.endsWith(".png")) {
+                    contentType = MediaType.IMAGE_PNG_VALUE;
+                } else if (fn.endsWith(".jpg") || fn.endsWith(".jpeg")) {
+                    contentType = MediaType.IMAGE_JPEG_VALUE;
+                } else if (fn.endsWith(".gif")) {
+                    contentType = MediaType.IMAGE_GIF_VALUE;
+                } else if (fn.endsWith(".m3u8")) {
+                    contentType = "application/vnd.apple.mpegurl";
+                } else if (fn.endsWith(".ts")) {
+                    contentType = "video/mp2t";
+                } else if (fn.endsWith(".mp4")) {
+                    contentType = "video/mp4";
+                } else {
+                    contentType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
+                }
             }
 
             HttpHeaders headers = new HttpHeaders();
@@ -307,7 +329,7 @@ public class StaticController {
             }
 
             Resource resource = new FileSystemResource(path);
-            
+
             if (customHeaders.getContentType() == null) {
                 String contentType = Files.probeContentType(path);
                 if (contentType == null) {

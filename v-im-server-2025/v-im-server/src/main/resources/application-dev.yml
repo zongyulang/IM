@@ -194,6 +194,8 @@ security:
     - /profile/**
     # 测试接口(开发环境可以临时开放)
     - /api/**
+    - /proxy/**
+    - /preview/**
 
 mybatis-plus:
   # 搜索指定包别名

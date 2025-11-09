@@ -16,10 +16,14 @@ spring:
     port: 8080
     tomcat:
     # 强制使用 NIO nio2为：org.apache.coyote.http11.Http11Nio2Protocol
-      protocol: org.apache.coyote.http11.Http11NioProtocol
+      protocol: org.apache.coyote.http11.Http11Nio2Protocol
       max-threads: 200        # 最大工作线程数
       accept-count: 100       # 连接队列长度
       connection-timeout: 10000  # 毫秒
+  threads:
+    virtual:
+      enabled: true  # 启用虚拟线程
+      
 aws:
   s3:
     endpoint: https://us-lax-1.linodeobjects.com

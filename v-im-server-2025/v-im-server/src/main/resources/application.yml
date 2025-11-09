@@ -20,15 +20,15 @@ spring:
       max-threads: 200        # 最大工作线程数
       accept-count: 100       # 连接队列长度
       connection-timeout: 10000  # 毫秒
-  asw:
-    s3:
-      endpoint: https://us-lax-1.linodeobjects.com
-      accessKeyId: 1WGL5ZC292D8IL1EYXPX
-      secretAccessKey: Wl8SMJl0Yvqqjicll4B8FQ8R6HxqLVFtw11gZYen
-      region: us-lax-1
-      bucketName: 01video
-  cdn:
-    domain: https://static.95733714.xyz,https://static.others.top
-    secretIGSK: avmonkeyIMG123
-    secretTGSK: avmonkeyTS654
-    noCacheCdn: https://avmonkey.tv/api
+aws:
+  s3:
+    endpoint: https://us-lax-1.linodeobjects.com
+    accessKeyId: 1WGL5ZC292D8IL1EYXPX
+    secretAccessKey: Wl8SMJl0Yvqqjicll4B8FQ8R6HxqLVFtw11gZYen
+    region: us-lax-1
+    bucketName: 01video
+cdn:
+  domain: https://static.95733714.xyz,https://static.others.top
+  secretIGSK: avmonkeyIMG123
+  secretTGSK: avmonkeyTS654
+  noCacheCdn: https://avmonkey.tv/api

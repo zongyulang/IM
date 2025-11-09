@@ -31,7 +31,7 @@ import java.nio.file.Paths;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api")
+
 public class StaticController {
 
     @Autowired

@@ -2,6 +2,8 @@ package com.vim.webpage.manager.Storage;
 
 import com.vim.webpage.config.StorageConfig;
 import com.vim.webpage.enums.FileTypeEnum;
+
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -16,8 +18,9 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class RedisFileManager {
 
-    @Autowired
+    @Resource(name = "webpageRedisTemplate")  // 指定 Bean 名称
     private RedisTemplate<String, Object> redisTemplate;
+
 
     @Autowired
     private StorageConfig storageConfig;
@@ -28,10 +31,10 @@ public class RedisFileManager {
     public void setFileRootPath(FileTypeEnum fileType, String rootPath, String key) {
         try {
             String redisKey = storageConfig.getRedisKeyPrefix() + key;
-            
+
             // 设置根路径
             redisTemplate.opsForHash().put(redisKey, "RootPath", rootPath);
-            
+
             // 计算并设置过期时间
             long expireTime;
             if (fileType == FileTypeEnum.THUMBNAIL || fileType == FileTypeEnum.PREVIEW
@@ -58,7 +61,7 @@ public class RedisFileManager {
             }
 
             log.debug("Set Redis cache for key: {}, rootPath: {}, expireTime: {}s", redisKey, rootPath, expireTime);
-            
+
         } catch (Exception e) {
             log.error("Failed to set Redis cache for key: {}", key, e);
         }
@@ -126,7 +129,7 @@ public class RedisFileManager {
         if (rootPath == null) {
             return "unknown";
         }
-        
+
         if (rootPath.contains("1080P")) {
             return "1080P";
         } else if (rootPath.contains("720P")) {
@@ -134,7 +137,7 @@ public class RedisFileManager {
         } else if (rootPath.contains("480P")) {
             return "480P";
         }
-        
+
         return "unknown";
     }
 }

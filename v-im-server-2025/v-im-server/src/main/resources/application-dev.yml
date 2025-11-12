@@ -101,10 +101,21 @@ spring:
       port: 6379
       # 数据库索引
       database: 3
+      username: mainUserYPWS
       # 密码
-      password:
+      password: ypwsCYF95733714!Test%*MainUserYouKnowHaHa
+      #redisSubscriber用户名
+      redisSubscriberusername: mainSubscriberYPWS
+      #redis订阅客户端密码
+      redisSubscriberPassword: ypwsCYF95733714!Test%*SubUserYaKnowHaHa
       # 连接超时时间
       timeout: 10s
+      ssl:
+        enabled: true
+        ca-certificate-path: classpath:redis-cert/ca.crt
+        client-certificate-path: classpath:redis-cert/redis.crt
+        client-key-path: classpath:redis-cert/redis.key
+        client-key-password:
       lettuce:
         pool:
           # 连接池中的最小空闲连接
@@ -115,7 +126,10 @@ spring:
           max-active: 32
           # #连接池最大阻塞等待时间（使用负值表示没有限制）
           max-wait: -1ms
-
+      # 订阅容器配置
+      subscriber:
+        enabled: true         # 设置为 false 可关闭订阅，避免无权限环境报错
+        pattern: "im:*"       # 订阅的频道模式（需在 Redis ACL 中授权该模式）
   # Elasticsearch 配置
   elasticsearch:
     uris: ${ElasticSearch_URL:http://localhost:9200}

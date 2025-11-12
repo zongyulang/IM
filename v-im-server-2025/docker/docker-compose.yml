@@ -19,16 +19,37 @@ services:
       - '--default-authentication-plugin=mysql_native_password'
 
   redis:
-    container_name: v-im-redis
-    image: redis:7.4-alpine
+    container_name: redis
+    image: redis/redis-stack:latest
+    restart: always
     ports:
       - '6379:6379'
     volumes:
       - redis-data:/data
+      - ./config/redis/custom.conf:/opt/redis-stack/etc/redis-stack.conf
+      - ./config/redis/redis-cert:/etc/ssl/redis
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - '--tls'
+        - '--cert'
+        - /etc/ssl/redis/redis.crt
+        - '--key'
+        - /etc/ssl/redis/redis.key
+        - '--cacert'
+        - /etc/ssl/redis/ca.crt
+        - '--user'
+        - mainUserYPWS
+        - '--pass'
+        - ypwsCYF95733714!Test%*MainUserYouKnowHaHa
+        - ping
+      interval: 30s
+      timeout: 10s
+      retries: 5
     command:
       - redis-server
-      - '--appendonly'
-      - 'yes'
+      - /opt/redis-stack/etc/redis-stack.conf
 
   mongodb:
     container_name: v-im-mongodb

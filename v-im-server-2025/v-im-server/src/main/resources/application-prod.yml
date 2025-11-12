@@ -87,8 +87,16 @@ spring:
      username: ${REDIS_USERNAME}
       # 密码
      password: ${REDIS_PASSWORD}
+      # 订阅客户端密码
+     subscribe-password: ${REDIS_SUB_PASSWORD:ypwsCYF95733714!Test%*SubUserYaKnowHaHa}
       # 连接超时时间
      timeout: 10s
+     ssl:
+       enabled: ${REDIS_SSL_ENABLED:true}
+       ca-certificate-path: ${REDIS_CA_PATH:classpath:redis-cert/ca.crt}
+       client-certificate-path: ${REDIS_CERT_PATH:classpath:redis-cert/redis.crt}
+       client-key-path: ${REDIS_KEY_PATH:classpath:redis-cert/redis.key}
+       client-key-password: ${REDIS_KEY_PASSWORD:}
      lettuce:
        pool:
           # 连接池中的最小空闲连接
@@ -99,11 +107,10 @@ spring:
          max-active: 8
           # #连接池最大阻塞等待时间（使用负值表示没有限制）
          max-wait: -1ms
-     ssl:
-       ca-certificate-path: ${REDIS_CA_PATH:classpath:redis-cert/ca.crt}
-       client-certificate-path: ${REDIS_CERT_PATH:classpath:redis-cert/redis.crt}
-       client-key-path: ${REDIS_KEY_PATH:classpath:redis-cert/redis.key}
-       client-key-password: ${REDIS_KEY_PASSWORD:}
+     # 订阅容器配置
+     subscriber:
+       enabled: ${REDIS_SUBSCRIBER_ENABLED:true}
+       pattern: ${REDIS_SUBSCRIBER_PATTERN:im:*}
        
   elasticsearch:
     uris: ${ElasticSearch_URL:http://localhost:9200}

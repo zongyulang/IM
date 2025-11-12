@@ -2,6 +2,8 @@ package com.vim.common.config;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.lettuce.core.SslOptions;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CachingConfigurer;
@@ -9,11 +11,13 @@ import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
-import org.springframework.context.annotation.Profile;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -21,6 +25,7 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
+import java.io.File;
 import java.time.Duration;
 
 /**
@@ -44,20 +49,34 @@ public class RedisConfig implements CachingConfigurer {
     @Value("${spring.data.redis.database:3}")
     private int defaultDatabase;
 
+    @Value("${spring.data.redis.username:}")
+    private String redisUsername;
+
+    @Value("${spring.data.redis.ssl.enabled:false}")
+    private boolean sslEnabled;
+
+    @Value("${spring.data.redis.ssl.ca-certificate-path:}")
+    private String caCertificatePath;
+
+    @Value("${spring.data.redis.ssl.client-certificate-path:}")
+    private String clientCertificatePath;
+
+    @Value("${spring.data.redis.ssl.client-key-path:}")
+    private String clientKeyPath;
+
+    @Value("${spring.data.redis.ssl.client-key-password:}")
+    private String clientKeyPassword;
+
+    @Autowired
+    private ResourceLoader resourceLoader;
+
     /**
      * 默认 RedisConnectionFactory - DB3 (用于系统业务)
      */
     @Bean
     @Primary
     public RedisConnectionFactory redisConnectionFactory() {
-        RedisStandaloneConfiguration config = new RedisStandaloneConfiguration();
-        config.setHostName(redisHost);
-        config.setPort(redisPort);
-        if (redisPassword != null && !redisPassword.isEmpty()) {
-            config.setPassword(redisPassword);
-        }
-        config.setDatabase(defaultDatabase); // DB3
-        return new LettuceConnectionFactory(config);
+        return createRedisConnectionFactory(defaultDatabase);
     }
 
     /**
@@ -65,13 +84,95 @@ public class RedisConfig implements CachingConfigurer {
      */
     @Bean(name = "webpageRedisConnectionFactory")
     public RedisConnectionFactory webpageRedisConnectionFactory() {
+        return createRedisConnectionFactory(0);
+    }
+
+    /**
+     * 创建 RedisConnectionFactory 的通用方法
+     * 
+     * @param database 数据库索引
+     * @return RedisConnectionFactory
+     */
+    private RedisConnectionFactory createRedisConnectionFactory(int database) {
         RedisStandaloneConfiguration config = new RedisStandaloneConfiguration();
         config.setHostName(redisHost);
         config.setPort(redisPort);
+
+        if (redisUsername != null && !redisUsername.isEmpty()) {
+            config.setUsername(redisUsername);
+        }
+
         if (redisPassword != null && !redisPassword.isEmpty()) {
             config.setPassword(redisPassword);
         }
-        config.setDatabase(0); // DB0 - webpage业务
+
+        config.setDatabase(database);
+
+        // 如果启用了 SSL，配置 SSL 选项
+        if (sslEnabled) {
+            try {
+                SslOptions.Builder sslOptionsBuilder = SslOptions.builder()
+                        .jdkSslProvider();
+
+                // 如果提供了 CA 证书路径，加载 CA 证书
+                if (caCertificatePath != null && !caCertificatePath.isEmpty()) {
+                    Resource caResource = resourceLoader.getResource(caCertificatePath);
+                    File caCertFile = caResource.getFile();
+                    sslOptionsBuilder.trustManager(caCertFile);
+                }
+
+                // 如果提供了客户端证书和密钥，使用 Netty 的 SslContextBuilder
+                if (clientCertificatePath != null && !clientCertificatePath.isEmpty()
+                        && clientKeyPath != null && !clientKeyPath.isEmpty()) {
+
+                    Resource clientCertResource = resourceLoader.getResource(clientCertificatePath);
+                    Resource clientKeyResource = resourceLoader.getResource(clientKeyPath);
+
+                    File clientCertFile = clientCertResource.getFile();
+                    File clientKeyFile = clientKeyResource.getFile();
+                    File caCertFile = null;
+
+                    if (caCertificatePath != null && !caCertificatePath.isEmpty()) {
+                        Resource caResource = resourceLoader.getResource(caCertificatePath);
+                        caCertFile = caResource.getFile();
+                    }
+
+                    // 使用 Netty 的 SslContextBuilder 配置客户端证书
+                    final File finalCaCertFile = caCertFile;
+                    sslOptionsBuilder = SslOptions.builder()
+                            .sslContext(sslContextBuilder -> {
+                                sslContextBuilder
+                                    .keyManager(clientCertFile, clientKeyFile,
+                                        (clientKeyPassword != null && !clientKeyPassword.isEmpty())
+                                                ? clientKeyPassword
+                                                : null);
+
+                                // 添加信任管理器（CA 证书）
+                                if (finalCaCertFile != null) {
+                                    sslContextBuilder.trustManager(finalCaCertFile);
+                                }
+                            });
+                }
+
+                SslOptions sslOptions = sslOptionsBuilder.build();
+
+                LettuceClientConfiguration clientConfig = LettuceClientConfiguration.builder()
+                        .useSsl()
+                        .and()
+                        .clientOptions(io.lettuce.core.ClientOptions.builder()
+                                .sslOptions(sslOptions)
+                                .build())
+                        .commandTimeout(Duration.ofSeconds(10))
+                        .build();
+
+                LettuceConnectionFactory factory = new LettuceConnectionFactory(config, clientConfig);
+                factory.afterPropertiesSet();
+                return factory;
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to configure Redis TLS connection: " + e.getMessage(), e);
+            }
+        }
+
         return new LettuceConnectionFactory(config);
     }
 
@@ -88,7 +189,8 @@ public class RedisConfig implements CachingConfigurer {
         template.setKeySerializer(stringRedisSerializer);
         template.setHashKeySerializer(stringRedisSerializer);
         // 使用 Jackson2JsonRedisSerializer 来序列化值
-        Jackson2JsonRedisSerializer<Object> jackson2JsonRedisSerializer = new Jackson2JsonRedisSerializer<>(Object.class);
+        Jackson2JsonRedisSerializer<Object> jackson2JsonRedisSerializer = new Jackson2JsonRedisSerializer<>(
+                Object.class);
         jackson2JsonRedisSerializer.setObjectMapper(objectMapper());
         template.setValueSerializer(jackson2JsonRedisSerializer);
         template.setHashValueSerializer(jackson2JsonRedisSerializer);
@@ -108,7 +210,8 @@ public class RedisConfig implements CachingConfigurer {
         template.setKeySerializer(stringRedisSerializer);
         template.setHashKeySerializer(stringRedisSerializer);
         // 使用 Jackson2JsonRedisSerializer 来序列化值
-        Jackson2JsonRedisSerializer<Object> jackson2JsonRedisSerializer = new Jackson2JsonRedisSerializer<>(Object.class);
+        Jackson2JsonRedisSerializer<Object> jackson2JsonRedisSerializer = new Jackson2JsonRedisSerializer<>(
+                Object.class);
         jackson2JsonRedisSerializer.setObjectMapper(objectMapper());
         template.setValueSerializer(jackson2JsonRedisSerializer);
         template.setHashValueSerializer(jackson2JsonRedisSerializer);
@@ -160,7 +263,6 @@ public class RedisConfig implements CachingConfigurer {
         // 在这里添加其他需要的配置
         return objectMapper;
     }
-
 
     /**
      * 限流脚本

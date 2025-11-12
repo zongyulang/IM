@@ -179,6 +179,59 @@ public class RedisPipelineManager extends RedisCommandManager {
 
         try {
             switch (method.toLowerCase()) {
+                case "script":
+                    // 支持: SCRIPT EXISTS sha1 [sha2 ...]
+                    //      SCRIPT LOAD script
+                    //      SCRIPT FLUSH
+                    if (args.length >= 1) {
+                        String sub = String.valueOf(args[0]).toUpperCase();
+                        switch (sub) {
+                            case "EXISTS": {
+                                // args: ["exists", sha1, sha2, ...]
+                                if (args.length >= 2) {
+                                    List<String> shaList = new ArrayList<>();
+                                    for (int i = 1; i < args.length; i++) {
+                                        Object a = args[i];
+                                        if (a instanceof List) {
+                                            for (Object item : (List<?>) a) {
+                                                shaList.add(String.valueOf(item));
+                                            }
+                                        } else if (a instanceof Object[]) {
+                                            for (Object item : (Object[]) a) {
+                                                shaList.add(String.valueOf(item));
+                                            }
+                                        } else {
+                                            shaList.add(String.valueOf(a));
+                                        }
+                                    }
+                                    String[] shaArr = shaList.toArray(new String[0]);
+                                    conn.scriptingCommands().scriptExists(shaArr);
+                                } else {
+                                    log.warn("SCRIPT EXISTS called without sha arguments");
+                                    conn.scriptingCommands().scriptExists();
+                                }
+                                break;
+                            }
+                            case "LOAD": {
+                                // args: ["load", scriptContent]
+                                if (args.length >= 2) {
+                                    String script = String.valueOf(args[1]);
+                                    conn.scriptingCommands().scriptLoad(script.getBytes(StandardCharsets.UTF_8));
+                                } else {
+                                    log.warn("SCRIPT LOAD called without script content");
+                                }
+                                break;
+                            }
+                            case "FLUSH": {
+                                conn.scriptingCommands().scriptFlush();
+                                break;
+                            }
+                            default: {
+                                log.warn("Unsupported SCRIPT subcommand: {}", sub);
+                            }
+                        }
+                    }
+                    break;
                 case "call":
                     // 通用命令执行,第一个参数是实际的 Redis 命令,后续参数是命令参数
                     if (args.length >= 1) {

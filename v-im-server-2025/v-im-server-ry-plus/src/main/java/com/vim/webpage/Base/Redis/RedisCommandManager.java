@@ -14,8 +14,8 @@ public abstract class RedisCommandManager {
 
     // 鏈夋晥鐨?Redis 鏂规硶鍒楄〃
     private static final Set<String> VALID_METHODS = new HashSet<>(Arrays.asList(
-            "lrange", "call", "hincrby", "expire", "exists", "get", "set",
-            "hset", "del", "hmget", "hgetall", "hdel", "incr", "lpush", "call"));
+        "lrange", "call", "hincrby", "expire", "exists", "get", "set",
+        "hset", "del", "hmget", "hgetall", "hdel", "incr", "lpush", "script", "call"));
 
     // 鍛戒护闃熷垪
     protected List<RedisCommand> commands;
@@ -144,6 +144,17 @@ public abstract class RedisCommandManager {
      */
     public RedisCommandManager lrange(Object... args) {
         this.addCommand(new RedisCommand("lrange", args));
+        return this;
+    }
+
+    /**
+     * SCRIPT 命令
+     *
+     * @param args 子命令及其参数，例如：("exists", sha1, sha2...)、("load", script)
+     * @return 当前对象, 支持链式调用
+     */
+    public RedisCommandManager script(Object... args) {
+        this.addCommand(new RedisCommand("script", args));
         return this;
     }
 

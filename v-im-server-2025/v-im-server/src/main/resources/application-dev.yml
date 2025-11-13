@@ -101,6 +101,7 @@ spring:
       port: 6379
       # 数据库索引
       database: 3
+      database1: 0
       username: mainUserYPWS
       # 密码
       password: ypwsCYF95733714!Test%*MainUserYouKnowHaHa

@@ -84,6 +84,7 @@ spring:
      port: 6379
       # 数据库索引
      database: 3
+     database1: 0
      username: ${REDIS_USERNAME}
       # 密码
      password: ${REDIS_PASSWORD}

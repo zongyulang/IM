@@ -8,7 +8,7 @@ import jakarta.annotation.Resource;
 import java.util.*;
 
 /**
- * Lua 脚本管理测试控制器
+ * Lua 脚本管理测试控制器,用来执行resource下的lua脚本
  *
  * @author vim
  */

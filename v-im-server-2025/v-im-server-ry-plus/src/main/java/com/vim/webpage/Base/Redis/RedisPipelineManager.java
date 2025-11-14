@@ -55,7 +55,7 @@ public class RedisPipelineManager extends RedisCommandManager {
             String method = command.getMethod();
             // 验证方法是否有效
             validateMethod(method);
-            //CompletableFuture代表一个可能还未完成的异步计算结果，你可以在未来某个时刻获取这个结果，或者等待它完成。
+            // CompletableFuture代表一个可能还未完成的异步计算结果，你可以在未来某个时刻获取这个结果，或者等待它完成。
             CompletableFuture<Object> future = new CompletableFuture<>();
             this.commands.add(command);
             this.futures.add(future);
@@ -117,6 +117,7 @@ public class RedisPipelineManager extends RedisCommandManager {
 
         try {
             // 使用 RedisTemplate 的 executePipelined 方法执行 pipeline
+            // 使用 RedisSerializer.string() 来避免 JSON 序列化错误
             List<Object> results = redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
                 for (RedisCommand command : commands) {
                     String method = command.getMethod();
@@ -130,7 +131,7 @@ public class RedisPipelineManager extends RedisCommandManager {
                     }
                 }
                 return null;
-            });
+            }, redisTemplate.getStringSerializer());
 
             // 检查结果数量是否匹配
             if (results.size() != commands.size()) {
@@ -181,8 +182,8 @@ public class RedisPipelineManager extends RedisCommandManager {
             switch (method.toLowerCase()) {
                 case "script":
                     // 支持: SCRIPT EXISTS sha1 [sha2 ...]
-                    //      SCRIPT LOAD script
-                    //      SCRIPT FLUSH
+                    // SCRIPT LOAD script
+                    // SCRIPT FLUSH
                     if (args.length >= 1) {
                         String sub = String.valueOf(args[0]).toUpperCase();
                         switch (sub) {
@@ -235,11 +236,11 @@ public class RedisPipelineManager extends RedisCommandManager {
                 case "call":
                     // 通用命令执行,第一个参数是实际的 Redis 命令,后续参数是命令参数
                     if (args.length >= 1) {
-                        String actualCommand = String.valueOf(args[0]);
-                        byte[][] commandArgs = new byte[args.length][];
-                        commandArgs[0] = actualCommand.getBytes(StandardCharsets.UTF_8);
+                        String actualCommand = String.valueOf(args[0]).toUpperCase();
+                        // 构建命令参数数组(不包含命令名本身)
+                        byte[][] commandArgs = new byte[args.length - 1][];
                         for (int i = 1; i < args.length; i++) {
-                            commandArgs[i] = serialize(args[i]);
+                            commandArgs[i - 1] = serialize(args[i]);
                         }
                         conn.execute(actualCommand, commandArgs);
                     }

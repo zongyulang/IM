@@ -10,6 +10,8 @@ import com.vim.webpage.Base.Redis.RedisPipelineManager;
 import jakarta.annotation.Resource;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 /**
  * Redis操作示例Controller
@@ -25,7 +27,7 @@ public class RedisController {
     private StringRedisTemplate stringRedisTemplate;
 
     // 注入 RedisTemplate,用于创建 Pipeline 管理器
-    @Resource
+    @Resource(name = "webpageRedisTemplate")
     private RedisTemplate<String, Object> redisTemplate;
 
     /**
@@ -430,6 +432,27 @@ public class RedisController {
             errorResult.put("message", "批量获取失败: " + e.getMessage());
             return errorResult;
         }
+    }
+
+    @GetMapping("/xadd")
+    public Map<String, Object> postMethodName(@RequestParam String key) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            // 直接使用 PipelineManager 执行单条命令
+            // XADD 命令格式: XADD key * field value [field value ...]
+            RedisPipelineManager pipelineManager = new RedisPipelineManager(redisTemplate);
+            Object response = pipelineManager.executeSingleCommand(
+                    new RedisPipelineManager.RedisCommand("call", "xadd", key, "*", "name", "mingzi"));
+
+            result.put("success", true);
+            result.put("message", "XADD 执行完成");
+            result.put("response", response);
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "XADD 执行失败: " + e.getMessage());
+            result.put("error", e.getClass().getName());
+        }
+        return result;
     }
 
     /**

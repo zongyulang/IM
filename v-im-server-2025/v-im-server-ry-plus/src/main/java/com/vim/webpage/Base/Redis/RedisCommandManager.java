@@ -14,8 +14,8 @@ public abstract class RedisCommandManager {
 
     // 鏈夋晥鐨?Redis 鏂规硶鍒楄〃
     private static final Set<String> VALID_METHODS = new HashSet<>(Arrays.asList(
-        "lrange", "call", "hincrby", "expire", "exists", "get", "set",
-        "hset", "del", "hmget", "hgetall", "hdel", "incr", "lpush", "script", "call"));
+            "lrange", "call", "hincrby", "expire", "exists", "get", "set",
+            "hset", "del", "hmget", "hgetall", "hdel", "incr", "lpush", "script", "call"));
 
     // 鍛戒护闃熷垪
     protected List<RedisCommand> commands;
@@ -45,6 +45,21 @@ public abstract class RedisCommandManager {
     public RedisCommandManager addCommand(RedisCommand command) {
         validateMethod(command.getMethod());
         this.commands.add(command);
+        return this;
+    }
+
+    public RedisCommandManager addCommand(String method, Object... args) {
+        RedisCommand command = new RedisCommand(method, args);
+        validateMethod(command.getMethod());
+        this.commands.add(command);
+        return this;
+    }
+
+    public RedisCommandManager addCommand(List<RedisCommand> command) {
+        for (RedisCommand cmd : command) {
+            validateMethod(cmd.getMethod());
+            this.commands.add(cmd);
+        }
         return this;
     }
 

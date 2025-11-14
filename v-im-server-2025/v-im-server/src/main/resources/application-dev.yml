@@ -91,9 +91,6 @@ spring:
         # 多久检查一次连接的活性
         keepaliveTime: 30000
   data:
-    mongodb:
-      uri: mongodb://127.0.0.1:27017/v-im-2025
-
     redis:
       # 地址
       host: 127.0.0.1
@@ -233,3 +230,17 @@ upload:
     base-path: profile/
    #上传文件路径
     upload-path: ./vim-files/
+
+mongodb:
+  # 默认客户端（v-im-2025）- 通过 TLS/副本集连接
+  ssl:
+    uri: mongodb://127.0.0.1:27017/v-im-2025?replicaSet=rs0
+    caPem: classpath:mongodb-cert/ca.pem
+    clientPem: classpath:mongodb-cert/mongodb.pem
+
+  # Web 专用客户端（mydatabase）- 通过 TLS/副本集连接
+  web:
+    ssl:
+      uri: mongodb://127.0.0.1:27017/mydatabase?replicaSet=rs0
+      caPem: classpath:mongodb-cert/ca.pem
+      clientPem: classpath:mongodb-cert/mongodb.pem

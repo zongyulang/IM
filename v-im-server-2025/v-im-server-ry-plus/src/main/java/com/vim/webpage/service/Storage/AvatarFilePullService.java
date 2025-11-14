@@ -3,6 +3,7 @@ package com.vim.webpage.service.Storage;
 import com.vim.webpage.Base.ObjectStorage.ObjFileManager;
 import com.vim.webpage.config.StorageConfig;
 import com.vim.webpage.manager.Storage.RedisFileManager;
+import com.vim.webpage.manager.RedisLuaManager.LuaManager;
 import com.vim.webpage.Utils.FilePathUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +14,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -35,51 +38,104 @@ public class AvatarFilePullService {
     @Autowired
     private StringRedisTemplate redisTemplate;
 
+    @Autowired
+    private LuaManager luaManager;
+
     private static final String FILE_LOCK_PREFIX = "file:lock:";
     private static final String FILE_REF_COUNT_PREFIX = "file:ref:";
+    private static final String AVATAR_ACCESS_LOG_KEY = "avatar:access:log";
     private static final long LOCK_TIMEOUT_SECONDS = 30;
     private static final long DOWNLOAD_TIMEOUT_SECONDS = 60;
     private static final long DELETE_WAIT_TIMEOUT_MS = 5000; // 删除等待超时
+    private static final long AVATAR_EXPIRE_TIME = 604800; // 7天（秒）
 
     /**
-     * 获取头像文件，redis线程锁
+     * 获取头像文件，使用 Lua 脚本记录访问并自动清理过期文件
      */
     public String getAvatar(String avatarPath) {
-        String refCountKey = FILE_REF_COUNT_PREFIX + avatarPath;
+        String localPath = FilePathUtil.joinPath(storageConfig.getLocalBasePath(), avatarPath);
+        Path path = Paths.get(localPath);
+        boolean fileExists = Files.exists(path) && Files.isRegularFile(path);
 
         try {
-            // increment，原子性
-            redisTemplate.opsForValue().increment(refCountKey);
-            //设置删除锁的过期时间，下载计数，作用：防止下载的时候正在删除
-            redisTemplate.expire(refCountKey, Duration.ofSeconds(storageConfig.getLockTimeoutSeconds()));
+            // 1. 无论文件是否存在，都调用 Lua 脚本记录访问并获取过期文件
+            long currentTime = System.currentTimeMillis() / 1000; // 当前时间戳（秒）
+            
+            List<String> keys = new ArrayList<>();
+            keys.add(AVATAR_ACCESS_LOG_KEY);
+            
+            Object result = luaManager.executeLuaScript(
+                "AvatarZaddPut.lua",
+                keys,
+                avatarPath,
+                currentTime,
+                AVATAR_EXPIRE_TIME
+            );
 
-            try {
-                String localPath = FilePathUtil.joinPath(storageConfig.getLocalBasePath(), avatarPath);
-                Path path = Paths.get(localPath);
-
-                // 检查文件是否存在且完整
-                if (Files.exists(path) && Files.isRegularFile(path)) {
-                    log.info("Avatar exists locally: {}", localPath);
-
-                    // 刷新 Redis 过期时间
-                    String fileName = FilePathUtil.getFileName(avatarPath);
-                    redisFileManager.refreshExpireTime("avatar:" + fileName);
-
-                    return localPath;
-                } else {
-                    log.info("Avatar not found locally, downloading from object storage: {}", avatarPath);
-                    return downloadAvatarWithLock(avatarPath);
-                }
-            } finally {
-                // 减少引用计数
-                Long refCount = redisTemplate.opsForValue().decrement(refCountKey);
-                if (refCount != null && refCount <= 0) {
-                    redisTemplate.delete(refCountKey);
+            // 2. 处理过期文件删除
+            if (result instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Object> expiredFiles = (List<Object>) result;
+                
+                if (!expiredFiles.isEmpty()) {
+                    log.info("发现 {} 个过期头像文件，开始删除...", expiredFiles.size());
+                    
+                    for (Object expiredObj : expiredFiles) {
+                        String expiredPath = expiredObj instanceof byte[] 
+                            ? new String((byte[]) expiredObj, java.nio.charset.StandardCharsets.UTF_8)
+                            : expiredObj.toString();
+                        
+                        try {
+                            String expiredFilePath = FilePathUtil.joinPath(
+                                storageConfig.getLocalBasePath(), 
+                                expiredPath
+                            );
+                            Path expiredFile = Paths.get(expiredFilePath);
+                            
+                            if (Files.exists(expiredFile)) {
+                                Files.delete(expiredFile);
+                                log.info("已删除过期头像文件: {}", expiredFilePath);
+                                
+                                // 删除 Redis 缓存
+                                String fileName = FilePathUtil.getFileName(expiredPath);
+                                redisFileManager.deleteFileCache("avatar:" + fileName);
+                            } else {
+                                log.warn("过期头像文件已不存在: {}", expiredPath);
+                            }
+                        } catch (Exception deleteError) {
+                            log.error("删除过期头像文件失败: {}, 错误: {}", expiredPath, deleteError.getMessage());
+                        }
+                    }
                 }
             }
 
+            // 3. 如果文件不存在，尝试从对象存储下载
+            if (!fileExists) {
+                log.info("头像文件不存在，尝试从对象存储下载: {}", avatarPath);
+                try {
+                    return downloadAvatarWithLock(avatarPath);
+                } catch (Exception downloadError) {
+                    log.error("头像文件下载失败: {}, 错误: {}", avatarPath, downloadError.getMessage());
+                    throw new RuntimeException("Failed to download avatar: " + avatarPath, downloadError);
+                }
+            }
+
+            // 4. 文件存在，刷新 Redis 过期时间
+            log.info("头像文件已存在本地: {}", localPath);
+            String fileName = FilePathUtil.getFileName(avatarPath);
+            redisFileManager.refreshExpireTime("avatar:" + fileName);
+            
+            return localPath;
+
         } catch (Exception e) {
-            log.error("Error getting avatar: {}", avatarPath, e);
+            log.error("处理头像访问记录失败: {}, 错误: {}", avatarPath, e.getMessage(), e);
+            
+            // 即使 Lua 脚本执行失败，也尝试返回文件
+            if (fileExists) {
+                log.warn("Lua 脚本执行失败，但文件存在，直接返回: {}", localPath);
+                return localPath;
+            }
+            
             throw new RuntimeException("Failed to get avatar: " + avatarPath, e);
         }
     }

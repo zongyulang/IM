@@ -52,14 +52,22 @@ services:
       - /opt/redis-stack/etc/redis-stack.conf
 
   mongodb:
-    container_name: v-im-mongodb
-    image: mongo:7.0
+    container_name: mongodb
+    image: mongo:7.0.11
+    restart: always
     ports:
       - '27017:27017'
     volumes:
-      - mongodb-data:/data/db
+      - mongodbdata:/data/db
+      - ./config/mongodb/mongodb-cert:/etc/ssl/mongodb:ro
     environment:
-      TZ: Asia/Shanghai
+      - TZ=Asia/Shanghai
+    command: |
+      mongod --bind_ip_all
+        --replSet rs0
+        --tlsMode requireTLS
+        --tlsCertificateKeyFile /etc/ssl/mongodb/mongodb.pem
+        --tlsCAFile /etc/ssl/mongodb/ca.pem
 
   elasticsearch:
     container_name: elasticsearch

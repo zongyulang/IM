@@ -210,16 +210,18 @@ mybatis-plus:
       logic-not-delete-value: 0
 
 mongodb:
-  # 默认客户端（imdatabase）- 通过 TLS/副本集连接
+  # 默认客户端（imdatabase）
+  # 副本集节点: mongodb:27017, 166.88.77.12:27017, 108.165.147.141:27017
   ssl:
-    uri: mongodb://${MONGODB_USERNAME_PWD}@107.174.250.107:27017/imdatabase?authSource=admin&replicaSet=rs0&readPreference=primary
+    uri: mongodb://${MONGODB_USERNAME_PWD}@mongodb:27017,166.88.77.12:27017,108.165.147.141:27017/imdatabase?authSource=admin&replicaSet=rs0&readPreference=nearest
     caPem: ${MONGODB_CA_PATH:classpath:mongodb-cert/ca.pem}
     clientPem: ${MONGODB_CERT_PATH:classpath:mongodb-cert/mongodb.pem}
 
-  # Web 专用客户端（mydatabase）- 通过 TLS/副本集连接
+  # Web 专用客户端（mydatabase）
+
   web:
     ssl:
-      uri: mongodb://${MONGODB_WEB_USERNAME_PWD}@107.174.250.107:27017/mydatabase?authSource=admin&replicaSet=rs0&readPreference=nearest
+      uri: mongodb://${MONGODB_WEB_USERNAME_PWD}@mongodb:27017,166.88.77.12:27017,108.165.147.141:27017/mydatabase?authSource=admin&replicaSet=rs0&readPreference=nearest
       caPem: ${MONGODB_WEB_CA_PATH:classpath:mongodb-cert/ca.pem}
       clientPem: ${MONGODB_WEB_CERT_PATH:classpath:mongodb-cert/mongodb.pem}
 

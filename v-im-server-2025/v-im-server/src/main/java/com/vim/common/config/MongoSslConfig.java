@@ -32,6 +32,9 @@ public class MongoSslConfig {
     private String uri;
     private String caPem;
     private String clientPem;
+    private String username;
+    private String password;
+    private String authSource;
     @Bean
     public MongoClient mongoClient() throws Exception {
         // 1. 加载CA证书 (构建信任库)
@@ -61,9 +64,25 @@ public class MongoSslConfig {
         SSLContext sslContext = SSLContext.getInstance("TLS");
         sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
 
-        // 4. 配置MongoClientSettings
+        // 4. 构建带认证的连接字符串
+        String connectionString = uri;
+        if (username != null && !username.isEmpty() && password != null && !password.isEmpty()) {
+            // 如果URI中没有认证信息,添加认证参数
+            String authSourceParam = (authSource != null && !authSource.isEmpty()) ? authSource : "admin";
+            if (!uri.contains("@")) {
+                // 在 mongodb:// 后插入认证信息
+                connectionString = uri.replace("mongodb://", 
+                    "mongodb://" + username + ":" + password + "@");
+                // 添加 authSource 参数
+                if (!connectionString.contains("authSource=")) {
+                    connectionString += (connectionString.contains("?") ? "&" : "?") + "authSource=" + authSourceParam;
+                }
+            }
+        }
+
+        // 5. 配置MongoClientSettings
         MongoClientSettings settings = MongoClientSettings.builder()
-                .applyConnectionString(new ConnectionString(uri))
+                .applyConnectionString(new ConnectionString(connectionString))
                 .applyToSslSettings(builder -> {
                     builder.enabled(true);
                     builder.context(sslContext);
@@ -235,5 +254,29 @@ public class MongoSslConfig {
 
     public void setClientPem(String clientPem) {
         this.clientPem = clientPem;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
+
+    public String getAuthSource() {
+        return authSource;
+    }
+
+    public void setAuthSource(String authSource) {
+        this.authSource = authSource;
     }
 }

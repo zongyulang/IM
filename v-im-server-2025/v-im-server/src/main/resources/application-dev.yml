@@ -237,6 +237,12 @@ mongodb:
     uri: mongodb://127.0.0.1:27017/v-im-2025?replicaSet=rs0
     caPem: classpath:mongodb-cert/ca.pem
     clientPem: classpath:mongodb-cert/mongodb.pem
+    username: adminMainUser
+    password: YpwsYYDS!ThisY957337!
+    authSource: admin
+    # 仅用于配置文件记录,不用于连接
+    replicaUsername: replicaSetUser
+    replicaPassword: replicaSetPassword!2024
 
   # Web 专用客户端（mydatabase）- 通过 TLS/副本集连接
   web:
@@ -244,3 +250,6 @@ mongodb:
       uri: mongodb://127.0.0.1:27017/mydatabase?replicaSet=rs0
       caPem: classpath:mongodb-cert/ca.pem
       clientPem: classpath:mongodb-cert/mongodb.pem
+      username: adminMainUser
+      password: YpwsYYDS!ThisY957337!
+      authSource: admin

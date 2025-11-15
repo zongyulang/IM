@@ -58,13 +58,15 @@ services:
     ports:
       - '27017:27017'
     volumes:
-      - mongodbdata:/data/db
+      - mongodb-data:/data/db
       - ./config/mongodb/mongodb-cert:/etc/ssl/mongodb:ro
     environment:
       - TZ=Asia/Shanghai
     command: |
       mongod --bind_ip_all
+        --auth
         --replSet rs0
+        --keyFile /etc/ssl/mongodb/keyfile
         --tlsMode requireTLS
         --tlsCertificateKeyFile /etc/ssl/mongodb/mongodb.pem
         --tlsCAFile /etc/ssl/mongodb/ca.pem

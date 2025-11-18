@@ -1,0 +1,255 @@
+# 开发环境配置
+#mvn clean spring-boot:run -DskipTests "-Dspring-boot.run.arguments=--spring.profiles.active=dev"
+server:
+  # 服务器的HTTP端口，默认为8080
+  port: 8080
+  servlet:
+    # 应用的访问路径
+    context-path: /
+  tomcat:
+    # tomcat的URI编码
+    uri-encoding: UTF-8
+    # 连接数满后的排队数，默认为100
+    accept-count: 1000
+    threads:
+      # tomcat最大线程数，默认为200
+      max: 800
+      # Tomcat启动初始化的线程数，默认值10
+      min-spare: 100
+
+# 日志配置
+logging:
+  level:
+    com.vim: info
+    org.springframework: warn
+
+# 用户配置
+user:
+  password:
+    # 密码最大错误次数
+    maxRetryCount: 5
+    # 密码锁定时间（默认10分钟）
+    lockTime: 10
+
+# Spring配置
+spring:
+  datasource:
+    type: com.zaxxer.hikari.HikariDataSource
+    # 动态数据源文档 https://www.kancloud.cn/tracy5546/dynamic-datasource/content
+    dynamic:
+      # 设置默认的数据源或者数据源组,默认值即为 master
+      primary: master
+      # 严格模式 匹配不到数据源则报错
+      strict: true
+      datasource:
+        # 主库数据源
+        #        master:
+        #          type: ${spring.datasource.type}
+        #          driverClassName: com.kingbase8.Driver
+        #          url: jdbc:kingbase8://localhost:54321/v-im?currentSchema=v-im-king&useUnicode=true&characterEncoding=utf8
+        #          username: system
+        #          password: system
+        #        # 从库数据源
+        #        slave:
+        #          lazy: true
+        #          type: ${spring.datasource.type}
+        #          driverClassName: com.kingbase8.Driver
+        #          url: jdbc:kingbase8://localhost:54321/v-im?currentSchema=public&useUnicode=true&characterEncoding=utf8
+        #          username: system
+        #          password: system
+        # 主库数据源
+        master:
+          type: ${spring.datasource.type}
+          driverClassName: com.mysql.cj.jdbc.Driver
+          # jdbc 所有参数配置参考 https://lionli.blog.csdn.net/article/details/122018562
+          # rewriteBatchedStatements=true 批处理优化 大幅提升批量插入更新删除性能(对数据库有性能损耗 使用批量操作应考虑性能问题)
+          url: jdbc:mysql://localhost:3306/v-im-2025?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=GMT%2B8&autoReconnect=true&rewriteBatchedStatements=true&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true
+          username: root
+          password: xlz123456
+        # 从库数据源
+        slave:
+          lazy: false
+          type: ${spring.datasource.type}
+          driverClassName: com.mysql.cj.jdbc.Driver
+          url: jdbc:mysql://localhost:3306/ruoyi-vue-plus?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=GMT%2B8&autoReconnect=true&rewriteBatchedStatements=true&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true
+          username: root
+          password: xlz123456
+
+      hikari:
+        # 最大连接池数量
+        maxPoolSize: 20
+        # 最小空闲线程数量
+        minIdle: 10
+        # 配置获取连接等待超时的时间
+        connectionTimeout: 30000
+        # 校验超时时间
+        validationTimeout: 5000
+        # 空闲连接存活最大时间，默认10分钟
+        idleTimeout: 600000
+        # 此属性控制池中连接的最长生命周期，值0表示无限生命周期，默认30分钟
+        maxLifetime: 1800000
+        # 多久检查一次连接的活性
+        keepaliveTime: 30000
+  data:
+    redis:
+      # 地址
+      host: 172.245.86.221
+      # 端口，默认为6379
+      port: 6379
+      # 数据库索引
+      database: 3
+      database1: 0
+      username: mainUserYPWS
+      # 密码
+      password: ypwsCYF95733714!Test%*MainUserYouKnowHaHa
+      #redisSubscriber用户名
+      redisSubscriberusername: mainSubscriberYPWS
+      #redis订阅客户端密码
+      redisSubscriberPassword: ypwsCYF95733714!Test%*SubUserYaKnowHaHa
+      # 连接超时时间
+      timeout: 10s
+      ssl:
+        enabled: true
+        ca-certificate-path: classpath:redis-cert/ca.crt
+        client-certificate-path: classpath:redis-cert/redis.crt
+        client-key-path: classpath:redis-cert/redis.key
+        client-key-password:
+      lettuce:
+        pool:
+          # 连接池中的最小空闲连接
+          min-idle: 0
+          # 连接池中的最大空闲连接
+          max-idle: 32
+          # 连接池的最大数据库连接数
+          max-active: 32
+          # #连接池最大阻塞等待时间（使用负值表示没有限制）
+          max-wait: -1ms
+      # 订阅容器配置
+      subscriber:
+        enabled: true         # 设置为 false 可关闭订阅，避免无权限环境报错
+        pattern: "im:*"       # 订阅的频道模式（需在 Redis ACL 中授权该模式）
+  # Elasticsearch 配置
+  elasticsearch:
+    uris: ${ElasticSearch_URL:http://localhost:9200}
+    username: elastic
+    password: ${Elastic_Password:YPWSYYDS!ELASTIC}
+    connection-timeout: 5s
+    socket-timeout: 30s
+
+  mvc:
+    static-path-pattern: /static/**
+    # 解决 No more pattern data allowed after {*...} or ** pattern element
+    pathmatch:
+      matching-strategy: ant_path_matcher
+  web:
+    resources:
+      static-locations:
+        [ classpath:/static, classpath:/favicon.ico ]
+  # 资源信息
+  messages:
+    # 国际化资源文件路径
+    basename: i18n/messages
+  # 文件上传
+  servlet:
+    multipart:
+      # 单个文件大小
+      max-file-size: 100MB
+      # 设置总上传的文件大小
+      max-request-size: 200MB
+
+# token配置
+sa-token:
+  # token 名称（同时也是 cookie 名称）
+  token-name: sa-token
+  # token 有效期（单位：秒） 默认30天，-1 代表永久有效
+  timeout: 2592000
+  # token 最低活跃频率（单位：秒），如果 token 超过此时间没有访问系统就会被冻结，默认-1 代表不限制，永不冻结
+  active-timeout: -1
+  # 是否允许同一账号多地同时登录 （为 true 时允许一起登录, 为 false 时新登录挤掉旧登录）
+  is-concurrent: true
+  # 在多人登录同一账号时，是否共用一个 token （为 true 时所有登录共用一个 token, 为 false 时每次登录新建一个 token）
+  is-share: false
+  # token 风格（默认可取值：uuid、simple-uuid、random-32、random-64、random-128、tik）
+  token-style: uuid
+  # 是否输出操作日志
+  is-log: true
+  oauth2-server:
+    # 是否全局开启授权码模式
+    enable-authorization-code: true
+    # 是否全局开启 Implicit 模式
+    enable-implicit: true
+    # 是否全局开启密码模式
+    enable-password: true
+    # 是否全局开启客户端模式
+    enable-client-credentials: true
+    # 前缀
+    openid-digest-prefix: hsd7DB@#?%MM%c1sx1xs861444ds#
+security:
+  # 排除路径
+  excludes:
+    # 静态资源
+    - /*.html
+    - /**/*.html
+    - /**/*.css
+    - /**/*.js
+    # 公共路径
+    - /favicon.ico
+    - /error
+    # swagger 文档配置
+    - /*/api-docs
+    - /*/api-docs/**
+    - /captchaImage
+    - /login
+    - /logout
+    - /register
+    - /static/**
+    - /profile/**
+    # 测试接口(开发环境可以临时开放)
+    - /api/**
+    - /proxy/**
+    - /preview/**
+
+mybatis-plus:
+  # 搜索指定包别名
+  typeAliasesPackage: com.vim.**.domain
+  # 配置mapper的扫描，找到所有的mapper.xml映射文件
+  mapperLocations: classpath*:mapper/vim/*Mapper.xml
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: assign_id
+      update-strategy: not_empty
+      logic-delete-field: del_flag
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+upload:
+  type: local
+  local:
+    base-path: profile/
+    #上传文件路径
+    upload-path: ./vim-files/
+
+mongodb:
+  # 默认客户端（v-im-2025）- 通过 TLS/副本集连接
+  ssl:
+    uri: mongodb://172.245.86.221:27017/v-im-2025?replicaSet=rs0
+    caPem: classpath:mongodb-cert/ca.pem
+    clientPem: classpath:mongodb-cert/mongodb.pem
+    username: adminMainUser
+    password: YpwsYYDS!ThisY957337!
+    authSource: admin
+    # 仅用于配置文件记录,不用于连接
+    replicaUsername: replicaSetUser
+    replicaPassword: replicaSetPassword!2024
+
+  # Web 专用客户端（mydatabase）- 通过 TLS/副本集连接
+  web:
+    ssl:
+      uri: mongodb://172.245.86.221:27017/mydatabase?replicaSet=rs0
+      caPem: classpath:mongodb-cert/ca.pem
+      clientPem: classpath:mongodb-cert/mongodb.pem
+      username: adminMainUser
+      password: YpwsYYDS!ThisY957337!
+      authSource: admin

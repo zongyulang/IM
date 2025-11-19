@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 public class ThreadInspector {
 
-    // ...existing code...
     @GetMapping("/inspect-threads")
     public Map<String, Object> inspectThreads() {
         Map<String, Object> info = new HashMap<>();

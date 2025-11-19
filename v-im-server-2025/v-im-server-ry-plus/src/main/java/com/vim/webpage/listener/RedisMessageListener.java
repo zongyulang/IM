@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
  * Redis 消息监听器示例
  * 用于接收 Redis 发布/订阅的消息
  *
- * @author vim
+ * @author fres
  */
 @Slf4j
 @Component

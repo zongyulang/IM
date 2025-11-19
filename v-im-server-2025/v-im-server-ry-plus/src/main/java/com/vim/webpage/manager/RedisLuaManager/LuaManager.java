@@ -1,6 +1,6 @@
 package com.vim.webpage.manager.RedisLuaManager;
 
-import com.vim.webpage.Base.Redis.RedisPipelineManager;
+import com.vim.webpage.manager.Redis.RedisPipelineManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;

@@ -1,6 +1,6 @@
 package com.vim.webpage.service.Storage;
 
-import com.vim.webpage.Base.ObjectStorage.ObjFileManager;
+import com.vim.webpage.manager.ObjectStorage.ObjFileManager;
 import com.vim.webpage.config.StorageConfig;
 import com.vim.webpage.manager.Storage.RedisFileManager;
 import com.vim.webpage.manager.RedisLuaManager.LuaManager;
@@ -47,7 +47,7 @@ public class AvatarFilePullService {
     private static final long LOCK_TIMEOUT_SECONDS = 30;
     private static final long DOWNLOAD_TIMEOUT_SECONDS = 60;
     private static final long DELETE_WAIT_TIMEOUT_MS = 5000; // 删除等待超时
-    private static final long AVATAR_EXPIRE_TIME = 604800; // 7天（秒）
+    private static final long AVATAR_EXPIRE_TIME = 604800 * 3; // 3*7=21天（秒）
 
     /**
      * 获取头像文件，使用 Lua 脚本记录访问并自动清理过期文件
@@ -60,42 +60,40 @@ public class AvatarFilePullService {
         try {
             // 1. 无论文件是否存在，都调用 Lua 脚本记录访问并获取过期文件
             long currentTime = System.currentTimeMillis() / 1000; // 当前时间戳（秒）
-            
+
             List<String> keys = new ArrayList<>();
             keys.add(AVATAR_ACCESS_LOG_KEY);
-            
+
             Object result = luaManager.executeLuaScript(
-                "AvatarZaddPut.lua",
-                keys,
-                avatarPath,
-                currentTime,
-                AVATAR_EXPIRE_TIME
-            );
+                    "AvatarZaddPut.lua",
+                    keys,
+                    avatarPath,
+                    currentTime,
+                    AVATAR_EXPIRE_TIME);
 
             // 2. 处理过期文件删除
             if (result instanceof List) {
                 @SuppressWarnings("unchecked")
                 List<Object> expiredFiles = (List<Object>) result;
-                
+
                 if (!expiredFiles.isEmpty()) {
                     log.info("发现 {} 个过期头像文件，开始删除...", expiredFiles.size());
-                    
+
                     for (Object expiredObj : expiredFiles) {
-                        String expiredPath = expiredObj instanceof byte[] 
-                            ? new String((byte[]) expiredObj, java.nio.charset.StandardCharsets.UTF_8)
-                            : expiredObj.toString();
-                        
+                        String expiredPath = expiredObj instanceof byte[]
+                                ? new String((byte[]) expiredObj, java.nio.charset.StandardCharsets.UTF_8)
+                                : expiredObj.toString();
+
                         try {
                             String expiredFilePath = FilePathUtil.joinPath(
-                                storageConfig.getLocalBasePath(), 
-                                expiredPath
-                            );
+                                    storageConfig.getLocalBasePath(),
+                                    expiredPath);
                             Path expiredFile = Paths.get(expiredFilePath);
-                            
+
                             if (Files.exists(expiredFile)) {
                                 Files.delete(expiredFile);
                                 log.info("已删除过期头像文件: {}", expiredFilePath);
-                                
+
                                 // 删除 Redis 缓存
                                 String fileName = FilePathUtil.getFileName(expiredPath);
                                 redisFileManager.deleteFileCache("avatar:" + fileName);
@@ -124,18 +122,18 @@ public class AvatarFilePullService {
             log.info("头像文件已存在本地: {}", localPath);
             String fileName = FilePathUtil.getFileName(avatarPath);
             redisFileManager.refreshExpireTime("avatar:" + fileName);
-            
+
             return localPath;
 
         } catch (Exception e) {
             log.error("处理头像访问记录失败: {}, 错误: {}", avatarPath, e.getMessage(), e);
-            
+
             // 即使 Lua 脚本执行失败，也尝试返回文件
             if (fileExists) {
                 log.warn("Lua 脚本执行失败，但文件存在，直接返回: {}", localPath);
                 return localPath;
             }
-            
+
             throw new RuntimeException("Failed to get avatar: " + avatarPath, e);
         }
     }

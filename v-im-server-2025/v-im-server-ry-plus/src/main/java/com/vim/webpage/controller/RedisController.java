@@ -4,8 +4,8 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
-import com.vim.webpage.Base.Redis.RedisCommandManager;
-import com.vim.webpage.Base.Redis.RedisPipelineManager;
+import com.vim.webpage.manager.Redis.RedisCommandManager;
+import com.vim.webpage.manager.Redis.RedisPipelineManager;
 
 import jakarta.annotation.Resource;
 import java.util.*;

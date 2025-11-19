@@ -1,6 +1,6 @@
 package com.vim.webpage.service.Storage;
 
-import com.vim.webpage.Base.ObjectStorage.ObjFileManager;
+import com.vim.webpage.manager.ObjectStorage.ObjFileManager;
 import com.vim.webpage.config.StorageConfig;
 import com.vim.webpage.enums.FileTypeEnum;
 import com.vim.webpage.manager.Storage.RedisFileManager;
@@ -77,7 +77,7 @@ public class VideoFilePullService {
     }
 
     /**
-     * 获取文件 - 主入口（线程安全版本）
+     * 获取文件 - 主入口-线程安全
      * 逻辑：先检查本地是否存在，存在则刷新过期时间；不存在则从对象存储下载
      */
     public String getFile(String filePath) {

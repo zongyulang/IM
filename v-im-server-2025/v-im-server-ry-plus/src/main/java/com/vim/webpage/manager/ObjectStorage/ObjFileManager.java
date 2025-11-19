@@ -1,4 +1,4 @@
-package com.vim.webpage.Base.ObjectStorage;
+package com.vim.webpage.manager.ObjectStorage;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

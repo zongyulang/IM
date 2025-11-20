@@ -33,7 +33,7 @@ public class MonthlyVideoRankingService implements IMonthlyVideoRankingService {
     @Resource(name = "webpageStringRedisTemplate")
     private StringRedisTemplate stringRedisTemplate;
 
-    @Autowired
+    @Resource(name = "webMongoTemplate")
     private MongoTemplate mongoTemplate;
 
     @Autowired

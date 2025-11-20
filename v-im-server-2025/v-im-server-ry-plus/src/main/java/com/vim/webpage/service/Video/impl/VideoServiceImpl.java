@@ -5,6 +5,7 @@ import com.vim.webpage.domain.Video;
 import com.vim.webpage.Utils.CDN_decrypt;
 import com.vim.webpage.Utils.VideoDataPackageUtil;
 
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
@@ -31,7 +32,7 @@ import java.util.stream.Collectors;
 @Service
 public class VideoServiceImpl implements VideoService {
 
-    @Autowired
+    @Resource(name = "webMongoTemplate")
     private MongoTemplate mongoTemplate;
 
     @Autowired

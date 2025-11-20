@@ -109,8 +109,19 @@ public class MongoWebSslConfig {
 
     @Bean(name = "webMongoTemplate")
     public MongoTemplate webMongoTemplate() throws Exception {
-        // Force database name to "mydatabase" regardless of what the URI includes
-        return new MongoTemplate(webMongoClient(), "mydatabase");
+        // 动态解析 URI 中的数据库名称，避免硬编码导致与真实库不匹配
+        String dbFromUri = null;
+        try {
+            if (uri != null && !uri.isEmpty()) {
+                dbFromUri = new ConnectionString(uri).getDatabase();
+            }
+        } catch (Exception ignore) {
+        }
+        if (dbFromUri == null || dbFromUri.isEmpty()) {
+            // 兼容旧配置: 如果 URI 没带库名, 回退为 mydatabase
+            dbFromUri = "mydatabase";
+        }
+        return new MongoTemplate(webMongoClient(), dbFromUri);
     }
 
     // ===== Helpers (duplicated for isolation) =====

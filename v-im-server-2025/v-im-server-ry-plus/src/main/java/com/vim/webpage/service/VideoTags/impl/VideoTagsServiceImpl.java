@@ -2,6 +2,9 @@ package com.vim.webpage.service.VideoTags.impl;
 
 import com.vim.webpage.domain.Tags;
 import com.vim.webpage.service.VideoTags.IVideoTagsService;
+
+import jakarta.annotation.Resource;
+
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -11,6 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 
 /**
  * 视频标签服务实现类
@@ -20,11 +25,11 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class VideoTagsServiceImpl implements IVideoTagsService {
-    
+    @Resource(name = "webMongoTemplate")
     private final MongoTemplate mongoTemplate;
-    
-    private static final String COLLECTION_NAME = "all_tags";
-    
+
+    private static final String COLLECTION_NAME = "alltags";
+
     @Override
     public Tags saveTag(Tags tags) {
         try {
@@ -39,7 +44,7 @@ public class VideoTagsServiceImpl implements IVideoTagsService {
             throw new RuntimeException("保存标签失败: " + e.getMessage());
         }
     }
-    
+
     @Override
     public int batchSaveTags(List<Tags> tagsList) {
         try {
@@ -56,7 +61,7 @@ public class VideoTagsServiceImpl implements IVideoTagsService {
             throw new RuntimeException("批量保存标签失败: " + e.getMessage());
         }
     }
-    
+
     @Override
     public Tags getTagByZhcn(String zhcn) {
         try {
@@ -67,7 +72,7 @@ public class VideoTagsServiceImpl implements IVideoTagsService {
             return null;
         }
     }
-    
+
     @Override
     public Tags getTagById(String id) {
         try {
@@ -77,7 +82,7 @@ public class VideoTagsServiceImpl implements IVideoTagsService {
             return null;
         }
     }
-    
+
     @Override
     public List<Tags> getAllTags() {
         try {
@@ -87,7 +92,7 @@ public class VideoTagsServiceImpl implements IVideoTagsService {
             return Collections.emptyList();
         }
     }
-    
+
     @Override
     public List<String> getAllTagsByLanguage(String lang) {
         try {
@@ -101,13 +106,13 @@ public class VideoTagsServiceImpl implements IVideoTagsService {
             return Collections.emptyList();
         }
     }
-    
+
     @Override
     public String getTagValueByLanguage(Tags tag, String lang) {
         if (tag == null || lang == null) {
             return null;
         }
-        
+
         return switch (lang.toLowerCase()) {
             case "zhcn" -> tag.getZhcn();
             case "zhtw" -> tag.getZhtw() != null ? tag.getZhtw() : tag.getZhcn();
@@ -121,13 +126,13 @@ public class VideoTagsServiceImpl implements IVideoTagsService {
             default -> tag.getZhcn(); // 默认返回中文
         };
     }
-    
+
     @Override
     public List<String> translateTags(List<String> zhcnTags, String lang) {
         if (zhcnTags == null || zhcnTags.isEmpty()) {
             return Collections.emptyList();
         }
-        
+
         try {
             return zhcnTags.stream()
                     .map(zhcn -> {
@@ -144,31 +149,30 @@ public class VideoTagsServiceImpl implements IVideoTagsService {
             return zhcnTags; // 翻译失败返回原标签
         }
     }
-    
+
     @Override
     public Map<String, List<String>> batchTranslateTags(Map<String, List<String>> videoTagsMap, String lang) {
         if (videoTagsMap == null || videoTagsMap.isEmpty()) {
             return Collections.emptyMap();
         }
-        
+
         try {
             // 收集所有唯一的中文标签
             Set<String> uniqueZhcnTags = videoTagsMap.values().stream()
                     .flatMap(List::stream)
                     .collect(Collectors.toSet());
-            
+
             // 批量查询所有标签
             Query query = new Query(Criteria.where("zhcn").in(uniqueZhcnTags));
             List<Tags> allTags = mongoTemplate.find(query, Tags.class, COLLECTION_NAME);
-            
+
             // 构建翻译映射表
             Map<String, String> translationMap = allTags.stream()
                     .collect(Collectors.toMap(
                             Tags::getZhcn,
                             tag -> getTagValueByLanguage(tag, lang),
-                            (v1, v2) -> v1
-                    ));
-            
+                            (v1, v2) -> v1));
+
             // 翻译每个视频的标签
             Map<String, List<String>> result = new HashMap<>();
             for (Map.Entry<String, List<String>> entry : videoTagsMap.entrySet()) {
@@ -177,14 +181,14 @@ public class VideoTagsServiceImpl implements IVideoTagsService {
                         .collect(Collectors.toList());
                 result.put(entry.getKey(), translatedTags);
             }
-            
+
             return result;
         } catch (Exception e) {
             log.error("❌ 批量翻译标签失败: {}", e.getMessage(), e);
             return videoTagsMap; // 翻译失败返回原映射
         }
     }
-    
+
     @Override
     public boolean deleteTag(String id) {
         try {
@@ -197,7 +201,7 @@ public class VideoTagsServiceImpl implements IVideoTagsService {
             return false;
         }
     }
-    
+
     @Override
     public List<Tags> searchTags(String keyword, String lang) {
         try {
@@ -213,7 +217,7 @@ public class VideoTagsServiceImpl implements IVideoTagsService {
                 case "msmy" -> "msmy";
                 default -> "zhcn";
             };
-            
+
             Query query = new Query(Criteria.where(fieldName).regex(keyword, "i"));
             return mongoTemplate.find(query, Tags.class, COLLECTION_NAME);
         } catch (Exception e) {
@@ -221,7 +225,7 @@ public class VideoTagsServiceImpl implements IVideoTagsService {
             return Collections.emptyList();
         }
     }
-    
+
     @Override
     public long countTags() {
         try {
@@ -231,7 +235,7 @@ public class VideoTagsServiceImpl implements IVideoTagsService {
             return 0;
         }
     }
-    
+
     @Override
     public boolean tagExists(String zhcn) {
         try {
@@ -240,6 +244,27 @@ public class VideoTagsServiceImpl implements IVideoTagsService {
         } catch (Exception e) {
             log.error("❌ 检查标签存在性失败: {}", e.getMessage(), e);
             return false;
+        }
+    }
+
+    @Override
+    public List<String> getRandomTagsByLanguage(String lang, int count) {
+        if (count <= 0) {
+            return Collections.emptyList();
+        }
+        try {
+            // 使用MongoDB聚合 $sample 进行随机抽样，提高效率
+            Aggregation aggregation = Aggregation.newAggregation(
+                    Aggregation.sample(count));
+            AggregationResults<Tags> results = mongoTemplate.aggregate(aggregation, COLLECTION_NAME, Tags.class);
+            List<Tags> sampled = results.getMappedResults();
+            return sampled.stream()
+                    .map(t -> getTagValueByLanguage(t, lang))
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("❌ 随机获取标签失败: {}", e.getMessage(), e);
+            return Collections.emptyList();
         }
     }
 }

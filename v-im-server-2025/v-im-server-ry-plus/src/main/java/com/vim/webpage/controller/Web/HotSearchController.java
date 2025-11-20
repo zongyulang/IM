@@ -16,7 +16,7 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/hot-search")
+@RequestMapping("/api")
 @RequiredArgsConstructor
 public class HotSearchController {
     
@@ -40,10 +40,10 @@ public class HotSearchController {
      * 获取今日热搜
      * GET /api/hot-search/today?topN=10
      */
-    @GetMapping("/today")
+    @GetMapping("/todayHotSearch")
     public ResponseEntity<Map<String, Object>> getTodayHotSearch(
-            @RequestParam(defaultValue = "10") int topN) {
-        HotSearch hotSearch = hotSearchService.getTodayHotSearch(topN);
+            @RequestParam(defaultValue = "10") int count) {
+        HotSearch hotSearch = hotSearchService.getTodayHotSearch(count);
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
         response.put("data", hotSearch);

@@ -72,26 +72,7 @@ public class HotSearch {
          */
         private Long searchCount;
         
-        /**
-         * 热度值（可以是搜索次数、点击次数等综合计算）
-         */
-        private Long hotScore;
         
-        /**
-         * 涨幅（相比上一周期的排名变化）
-         * 正数表示上升，负数表示下降，0表示持平
-         */
-        private Integer rankChange;
-        
-        /**
-         * 是否为新上榜
-         */
-        private Boolean isNew = false;
-        
-        /**
-         * 标签（如：热、新、爆）
-         */
-        private String tag;
     }
 }
 

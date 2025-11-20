@@ -1,6 +1,9 @@
 package com.vim.webpage.service.User.impl;
 
 import com.vim.webpage.service.User.UserService;
+
+import jakarta.annotation.Resource;
+
 import com.vim.webpage.domain.User;
 import com.vim.webpage.Utils.CDN_decrypt;
 import com.vim.webpage.Utils.UserDataPackageUtil;
@@ -25,7 +28,7 @@ import java.util.stream.Collectors;
 @Service
 public class UserServiceImpl implements UserService {
 
-    @Autowired
+    @Resource(name = "webMongoTemplate")
     private MongoTemplate mongoTemplate;
 
     @Autowired

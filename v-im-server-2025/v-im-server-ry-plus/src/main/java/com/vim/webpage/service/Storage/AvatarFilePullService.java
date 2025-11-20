@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.Resource;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -35,7 +36,7 @@ public class AvatarFilePullService {
     @Autowired
     private StorageConfig storageConfig;
 
-    @Autowired
+    @Resource(name = "webpageStringRedisTemplate")
     private StringRedisTemplate redisTemplate;
 
     @Autowired

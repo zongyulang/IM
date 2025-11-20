@@ -9,7 +9,7 @@ import lombok.Data;
 import java.util.Date;
 
 @Data
-@Document(collection = "all_tags") // 指定 MongoDB 集合名称
+@Document(collection = "alltags") // 指定 MongoDB 集合名称
 public class Tags {
 
     @Id

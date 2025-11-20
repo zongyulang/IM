@@ -1,4 +1,4 @@
-package com.vim.webpage.controller.Web.IndexPage;
+package com.vim.webpage.controller.Web;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,11 +17,11 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /*
-    首页的控制器
+    首页tag的控制器
 */
 @RestController
 @RequestMapping("/api")
-public class indexpage {
+public class SeoTag {
 
     @GetMapping("/IndexPageTags")
     public ResponseEntity<Map<String, Object>> IndexPageTags(@RequestParam String lang) {

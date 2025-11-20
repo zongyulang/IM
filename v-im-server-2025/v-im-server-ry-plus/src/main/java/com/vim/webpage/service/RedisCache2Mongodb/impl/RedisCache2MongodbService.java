@@ -44,7 +44,7 @@ public class RedisCache2MongodbService implements IRedisCache2MongodbService {
     @Resource(name = "webpageStringRedisTemplate")
     private StringRedisTemplate stringRedisTemplate;
 
-    @Autowired
+    @Resource(name = "webMongoTemplate")
     private MongoTemplate mongoTemplate;
 
     @Autowired(required = false)
@@ -112,7 +112,6 @@ public class RedisCache2MongodbService implements IRedisCache2MongodbService {
                     keyword.setRank(rank++);
                     keyword.setKeyword(tuple.getValue());
                     keyword.setSearchCount(tuple.getScore() != null ? tuple.getScore().longValue() : 0L);
-                    keyword.setHotScore(tuple.getScore() != null ? tuple.getScore().longValue() : 0L);
                     keywords.add(keyword);
                 }
             }
@@ -158,7 +157,6 @@ public class RedisCache2MongodbService implements IRedisCache2MongodbService {
                             com.vim.webpage.domain.HotSearch.SearchKeyword k = new com.vim.webpage.domain.HotSearch.SearchKeyword();
                             k.setKeyword(e.getKey());
                             k.setSearchCount(e.getValue());
-                            k.setHotScore(e.getValue());
                             return k;
                         }).collect(Collectors.toList());
                 com.vim.webpage.domain.HotSearch weekHotSearch = new com.vim.webpage.domain.HotSearch();
@@ -200,7 +198,6 @@ public class RedisCache2MongodbService implements IRedisCache2MongodbService {
                             com.vim.webpage.domain.HotSearch.SearchKeyword k = new com.vim.webpage.domain.HotSearch.SearchKeyword();
                             k.setKeyword(e.getKey());
                             k.setSearchCount(e.getValue());
-                            k.setHotScore(e.getValue());
                             return k;
                         }).collect(Collectors.toList());
                 com.vim.webpage.domain.HotSearch monthHotSearch = new com.vim.webpage.domain.HotSearch();

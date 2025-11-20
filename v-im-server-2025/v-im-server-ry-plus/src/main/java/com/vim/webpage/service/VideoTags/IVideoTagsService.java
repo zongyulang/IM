@@ -103,4 +103,13 @@ public interface IVideoTagsService {
      * @return 是否存在
      */
     boolean tagExists(String zhcn);
+
+    /**
+     * 随机获取指定数量的标签（按语言）
+     * 使用MongoDB的$sample提升效率
+     * @param lang 语言代码
+     * @param count 需要的数量（<=0返回空）
+     * @return 随机标签列表，可能少于count（当总数不足）
+     */
+    List<String> getRandomTagsByLanguage(String lang, int count);
 }

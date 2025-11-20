@@ -2,6 +2,7 @@ package com.vim.webpage.service.HotSearch.impl;
 
 import com.vim.webpage.domain.HotSearch;
 import com.vim.webpage.service.HotSearch.IHotSearchService;
+import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -25,8 +26,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class HotSearchServiceImpl implements IHotSearchService {
     
+    @Resource(name = "webMongoTemplate")
     private final MongoTemplate mongoTemplate;
+    
+    @Resource(name = "webpageStringRedisTemplate")
     private final StringRedisTemplate stringRedisTemplate;
+    
     private final com.vim.webpage.service.VideoTags.IVideoTagsService videoTagsService;
     
     // 只用一个Redis key做缓存，所有榜单都从MongoDB获取
@@ -143,19 +148,25 @@ public class HotSearchServiceImpl implements IHotSearchService {
         }
         int currentSize = hotSearch.getKeywords().size();
         if (currentSize < topN) {
-            // 获取所有标签，随机补足
-            List<String> allTags = videoTagsService.getAllTagsByLanguage("zhcn");
-            // 去除已在热搜中的
-            Set<String> used = hotSearch.getKeywords().stream().map(HotSearch.SearchKeyword::getKeyword).collect(Collectors.toSet());
-            List<String> candidates = allTags.stream().filter(t -> !used.contains(t)).collect(Collectors.toList());
-            Collections.shuffle(candidates);
             int need = topN - currentSize;
-            for (int i = 0; i < Math.min(need, candidates.size()); i++) {
+            // 先尝试一次性获取所需数量的随机标签，去重
+            Set<String> used = hotSearch.getKeywords().stream().map(HotSearch.SearchKeyword::getKeyword).collect(Collectors.toSet());
+            List<String> randomTags = videoTagsService.getRandomTagsByLanguage("zhcn", need * 2); // 多取一些避免重复
+            List<String> filtered = randomTags.stream().filter(t -> !used.contains(t)).collect(Collectors.toList());
+            if (filtered.size() < need) {
+                // 不足时再补：获取全部语言标签做兜底
+                List<String> allTags = videoTagsService.getAllTagsByLanguage("zhcn");
+                for (String tag : allTags) {
+                    if (filtered.size() >= need) break;
+                    if (!used.contains(tag) && !filtered.contains(tag)) {
+                        filtered.add(tag);
+                    }
+                }
+            }
+            for (int i = 0; i < Math.min(need, filtered.size()); i++) {
                 HotSearch.SearchKeyword keyword = new HotSearch.SearchKeyword();
                 keyword.setRank(currentSize + i + 1);
-                keyword.setKeyword(candidates.get(i));
-                keyword.setSearchCount(0L);
-                keyword.setHotScore(0L);
+                keyword.setKeyword(filtered.get(i));
                 hotSearch.getKeywords().add(keyword);
             }
         }
@@ -235,8 +246,7 @@ public class HotSearchServiceImpl implements IHotSearchService {
                 HotSearch.SearchKeyword keyword = new HotSearch.SearchKeyword();
                 keyword.setRank(rank++);
                 keyword.setKeyword(tuple.getValue());
-                keyword.setSearchCount(tuple.getScore() != null ? tuple.getScore().longValue() : 0L);
-                keyword.setHotScore(tuple.getScore() != null ? tuple.getScore().longValue() : 0L);
+
                 keywords.add(keyword);
             }
             

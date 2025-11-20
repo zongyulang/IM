@@ -1,9 +1,10 @@
 package com.vim.webpage.listener;
 
+import com.vim.webpage.service.RedisCache2Mongodb.IRedisCache2MongodbService;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.stereotype.Component;
@@ -20,6 +21,9 @@ public class RedisMessageListener implements MessageListener {
 
     @Value("${spring.data.redis.database1:0}")
     private int database;
+
+    @Autowired
+    private IRedisCache2MongodbService redisCache2MongodbService;
 
     /**
      * 处理接收到的消息
@@ -111,31 +115,29 @@ public class RedisMessageListener implements MessageListener {
             case "im:notification":
                 log.info("处理通知消息: {}", message);
                 break;
+            case "im:sync_monthly_ranking":
+                log.info("🔔 接收到月度排行榜同步请求");
+                handleMonthlyRankingSync(message);
+                break;
             default:
                 log.debug("收到业务频道消息: {} - {}", channel, message);
         }
     }
 
     /**
-     * 处理具体的业务逻辑
-     *
-     * @param channel 频道名称
-     * @param message 消息内容
+     * 处理月度排行榜同步请求
      */
-    private void handleMessage(String channel, String message) {
-        // TODO: 根据不同的频道执行不同的业务逻辑
-        switch (channel) {
-            case "im:message":
-                log.info("处理即时消息: {}", message);
-                // 处理即时消息的业务逻辑
-                break;
-            case "im:notification":
-                log.info("处理通知消息: {}", message);
-                // 处理通知消息的业务逻辑
-                break;
-            default:
-                log.debug("收到未知频道的消息: {} - {}", channel, message);
-                break;
+    private void handleMonthlyRankingSync(String message) {
+        try {
+            log.info("📊 开始处理月度排行榜同步: {}", message);
+            boolean success = redisCache2MongodbService.syncMonthlyVideoRanking();
+            if (success) {
+                log.info("✅ 月度排行榜同步成功");
+            } else {
+                log.warn("⚠️ 月度排行榜同步失败或无数据");
+            }
+        } catch (Exception e) {
+            log.error("❌ 处理月度排行榜同步时发生错误: {}", e.getMessage(), e);
         }
     }
 }

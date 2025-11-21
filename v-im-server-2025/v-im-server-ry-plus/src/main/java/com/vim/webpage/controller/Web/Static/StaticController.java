@@ -129,7 +129,7 @@ public class StaticController {
      * 处理 /video/** 请求 - 视频资源访问
      * 需要验证特定请求头 x-edge-cf
      */
-    @GetMapping("/api/video/**")
+    @GetMapping("/video/**")
     public ResponseEntity<?> handleVideo(HttpServletRequest request) {
         String requestUrl = request.getRequestURI();
         String requestPath = requestUrl.substring("/api".length()); // 移除 /api 前缀

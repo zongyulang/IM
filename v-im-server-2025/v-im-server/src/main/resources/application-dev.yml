@@ -253,3 +253,9 @@ mongodb:
       username: adminMainUser
       password: YpwsYYDS!ThisY957337!
       authSource: admin
+
+cdn:
+  domain: http://127.0.0.1:8787
+  secretIGSK: avmonkeyIMG123
+  secretTGSK: avmonkeyTS654
+  noCacheCdn: https://avmonkey.tv/api

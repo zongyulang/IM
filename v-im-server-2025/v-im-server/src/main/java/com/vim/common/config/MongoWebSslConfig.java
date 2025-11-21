@@ -28,7 +28,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Additional Mongo client for web module, connecting to "mydatabase" over TLS with replica set.
+ * Additional Mongo client for web module, connecting to "mydatabase" over TLS
+ * with replica set.
  * Properties prefix: mongodb.web.ssl
  */
 @Configuration
@@ -86,8 +87,8 @@ public class MongoWebSslConfig {
             String authSourceParam = (authSource != null && !authSource.isEmpty()) ? authSource : "admin";
             if (!uri.contains("@")) {
                 // 在 mongodb:// 后插入认证信息
-                connectionString = uri.replace("mongodb://", 
-                    "mongodb://" + username + ":" + password + "@");
+                connectionString = uri.replace("mongodb://",
+                        "mongodb://" + username + ":" + password + "@");
                 // 添加 authSource 参数
                 if (!connectionString.contains("authSource=")) {
                     connectionString += (connectionString.contains("?") ? "&" : "?") + "authSource=" + authSourceParam;
@@ -162,7 +163,7 @@ public class MongoWebSslConfig {
             throw new IllegalArgumentException("No certificates found in: " + resourcePath);
         }
 
-        return new Object[]{privateKey, certificates.toArray(new X509Certificate[0])};
+        return new Object[] { privateKey, certificates.toArray(new X509Certificate[0]) };
     }
 
     private Resource createResource(String path) {
@@ -177,19 +178,51 @@ public class MongoWebSslConfig {
         }
     }
 
-    public String getUri() { return uri; }
-    public void setUri(String uri) { this.uri = uri; }
-    public String getCaPem() { return caPem; }
-    public void setCaPem(String caPem) { this.caPem = caPem; }
-    public String getClientPem() { return clientPem; }
-    public void setClientPem(String clientPem) { this.clientPem = clientPem; }
-    
-    public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
-    
-    public String getPassword() { return password; }
-    public void setPassword(String password) { this.password = password; }
-    
-    public String getAuthSource() { return authSource; }
-    public void setAuthSource(String authSource) { this.authSource = authSource; }
+    public String getUri() {
+        return uri;
+    }
+
+    public void setUri(String uri) {
+        this.uri = uri;
+    }
+
+    public String getCaPem() {
+        return caPem;
+    }
+
+    public void setCaPem(String caPem) {
+        this.caPem = caPem;
+    }
+
+    public String getClientPem() {
+        return clientPem;
+    }
+
+    public void setClientPem(String clientPem) {
+        this.clientPem = clientPem;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
+
+    public String getAuthSource() {
+        return authSource;
+    }
+
+    public void setAuthSource(String authSource) {
+        this.authSource = authSource;
+    }
 }

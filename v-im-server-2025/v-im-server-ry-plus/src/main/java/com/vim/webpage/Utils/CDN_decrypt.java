@@ -2,6 +2,7 @@ package com.vim.webpage.Utils;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import lombok.extern.slf4j.Slf4j;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
@@ -15,6 +16,7 @@ import javax.crypto.spec.SecretKeySpec;
  * 2.进行加密签名操作
  * CDN 解密与签名工具类
  */
+@Slf4j
 @Component
 public class CDN_decrypt {
 
@@ -129,10 +131,22 @@ public class CDN_decrypt {
 
     // generateSignedPathWithVersion
     public String generateSignedPathWithVersion(String path) {
+        if (path == null) {
+            throw new IllegalArgumentException("path cannot be null");
+        }
+        String original = path;
+        // 统一分隔符
         path = path.replace("\\", "/");
+        // 去除多余前导斜杠但保留一个，避免 //video/... 被直接编码
+        path = path.replaceFirst("^/+", "/");
+        if (!original.equals(path)) {
+            log.debug("[CDN_decrypt] generateSignedPath normalize before='{}' after='{}'", original, path);
+        }
         String base64path = base64urlEncode(path.getBytes(StandardCharsets.UTF_8));
         String signature = hmacSha256B64Url(base64path, secretIGSK);
-        return getCdnHost(signature) + "/proxy/" + signature + "/" + base64path;
+        String full = getCdnHost(signature) + "/proxy/" + signature + "/" + base64path;
+        log.debug("[CDN_decrypt] generateSignedPath path='{}' base64='{}' signature='{}' url='{}'", path, base64path, signature, full);
+        return full;
     }
 
     // generateM3u8Hash
@@ -236,16 +250,27 @@ public class CDN_decrypt {
     // verifySignedPathWithVersion
     public VerifyResult verifySignedPathWithVersion(String request, String secret) {
         String[] parts = request.split("/");
-        if (parts.length < 4)
+        if (parts.length < 4) {
             return new VerifyResult(false, "Invalid format", null);
+        }
         String signature = parts[2];
         String base64path = parts[3];
         String expectedSig = sign(base64path, secret);
-        if (!signature.equals(expectedSig))
+        if (!signature.equals(expectedSig)) {
             return new VerifyResult(false, "Invalid signature", null);
+        }
         try {
-            String decodedPath = new String(base64urlDecode(base64path), StandardCharsets.UTF_8);
-            return new VerifyResult(true, null, decodedPath);
+            String rawDecoded = new String(base64urlDecode(base64path), StandardCharsets.UTF_8);
+            // 统一路径分隔符
+            String normalized = rawDecoded.replace("\\", "/");
+            // 去除多余的前导斜杠，保留一个
+            normalized = normalized.replaceFirst("^/+", "/");
+            if (!rawDecoded.equals(normalized)) {
+                log.debug("[CDN_decrypt] Path normalized. base64={}, before='{}', after='{}'", base64path, rawDecoded, normalized);
+            } else {
+                log.debug("[CDN_decrypt] Path decoded. base64={}, decoded='{}'", base64path, normalized);
+            }
+            return new VerifyResult(true, null, normalized);
         } catch (Exception e) {
             return new VerifyResult(false, "Invalid base64", null);
         }
